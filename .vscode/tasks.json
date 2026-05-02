@@ -1,0 +1,32 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "ScholarsGallery: Run Vapor server",
+      "type": "shell",
+      "command": "SCRIPT=\"${workspaceFolder}/Scripts/run_server_anywhere.sh\"; if [ ! -f \"$SCRIPT\" ]; then SCRIPT=\"${workspaceFolder}/../Scripts/run_server_anywhere.sh\"; fi; chmod +x \"$SCRIPT\" 2>/dev/null; exec \"$SCRIPT\"",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": true
+      }
+    },
+    {
+      "label": "ScholarsGallery: Smoke test Vapor",
+      "type": "shell",
+      "command": "ROOT=\"${workspaceFolder}\"; if [ -f \"$ROOT/Package.swift\" ]; then cd \"$ROOT\" && ./Scripts/smoke_verify_server.sh; elif [ -f \"$ROOT/../Package.swift\" ]; then cd \"$ROOT/..\" && ./Scripts/smoke_verify_server.sh; else echo 'No Package.swift'; exit 1; fi",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    }
+  ]
+}

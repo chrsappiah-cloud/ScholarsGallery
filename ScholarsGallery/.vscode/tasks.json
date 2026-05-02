@@ -1,0 +1,32 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "ScholarsGallery: Run Vapor server",
+      "type": "shell",
+      "command": "chmod +x \"${workspaceFolder}/../Scripts/run_server_anywhere.sh\" 2>/dev/null; exec \"${workspaceFolder}/../Scripts/run_server_anywhere.sh\"",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": true
+      }
+    },
+    {
+      "label": "ScholarsGallery: Smoke test Vapor",
+      "type": "shell",
+      "command": "cd \"${workspaceFolder}/..\" && ./Scripts/smoke_verify_server.sh",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    }
+  ]
+}

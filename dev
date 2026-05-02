@@ -1,0 +1,2 @@
+#!/bin/sh
+exec "$(dirname "$0")/Scripts/run_local_server.sh"

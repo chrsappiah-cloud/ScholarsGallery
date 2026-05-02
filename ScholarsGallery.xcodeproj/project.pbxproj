@@ -185,6 +185,7 @@
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 2640;
 				LastUpgradeCheck = 2640;
+				ORGANIZATIONNAME = wcs;
 				TargetAttributes = {
 					5ECC2BF62FA3133D001DB580 = {
 						CreatedOnToolsVersion = 26.4.1;
@@ -205,6 +206,50 @@
 			knownRegions = (
 				en,
 				Base,
+				ar,
+				bg,
+				ca,
+				cs,
+				da,
+				de,
+				el,
+				"en-AU",
+				"en-GB",
+				es,
+				"es-419",
+				et,
+				fi,
+				fil,
+				fr,
+				"fr-CA",
+				he,
+				hi,
+				hr,
+				hu,
+				id,
+				it,
+				ja,
+				ko,
+				lt,
+				lv,
+				ms,
+				nb,
+				nl,
+				pl,
+				"pt-BR",
+				"pt-PT",
+				ro,
+				ru,
+				sk,
+				sl,
+				sv,
+				sw,
+				th,
+				tr,
+				uk,
+				vi,
+				"zh-Hans",
+				"zh-Hant",
 			);
 			mainGroup = 5ECC2BEE2FA3133D001DB580;
 			minimizedProjectReferenceProxies = 1;
@@ -294,6 +339,11 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ScholarsGallery/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = ScholarsGallery;
+				INFOPLIST_KEY_DEFAULT_ARTIST_ID = "00000000-0000-0000-0000-000000000001";
+				INFOPLIST_KEY_GALLERY_API_BASE_URL = "http://127.0.0.1:8080";
+				INFOPLIST_KEY_GENERATION_API_TOKEN = "";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -321,13 +371,20 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = ScholarsGallery/ScholarsGallery.entitlements;
+				CODE_SIGN_ENTITLEMENTS = ScholarsGallery/ScholarsGallery.Release.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = TM2WG7HH96;
-				ENABLE_PREVIEWS = YES;
+				ENABLE_PREVIEWS = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ScholarsGallery/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = ScholarsGallery;
+				INFOPLIST_KEY_DEFAULT_ARTIST_ID = "00000000-0000-0000-0000-000000000001";
+				INFOPLIST_KEY_GALLERY_API_BASE_URL = "https://api.scholarsgallery.app";
+				INFOPLIST_KEY_GENERATION_API_TOKEN = "";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -341,6 +398,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = wcs.ScholarsGallery;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				STRIP_SWIFT_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;

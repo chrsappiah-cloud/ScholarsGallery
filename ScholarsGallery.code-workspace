@@ -1,0 +1,14 @@
+{
+  "folders": [
+    {
+      "name": "ScholarsGallery",
+      "path": "."
+    }
+  ],
+  "settings": {
+    "terminal.integrated.cwd": "${workspaceFolder}"
+  },
+  "extensions": {
+    "recommendations": ["swiftlang.swift-vscode"]
+  }
+}

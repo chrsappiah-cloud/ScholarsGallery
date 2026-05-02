@@ -10,23 +10,22 @@ import SwiftData
 
 @main
 struct ScholarsGalleryApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+    let modelContainer: ModelContainer
 
+    init() {
         do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+            modelContainer = try GalleryPersistence.makeContainer()
         } catch {
-            fatalError("Could not create ModelContainer: \(error)")
+            modelContainer = try! GalleryPersistence.makeFallbackContainer()
         }
-    }()
+        _ = ICloudKeyValueSync.shared
+    }
 
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .tint(GalleryTheme.accent)
         }
-        .modelContainer(sharedModelContainer)
+        .modelContainer(modelContainer)
     }
 }
