@@ -10,25 +10,29 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
-  SWIFT_VERSION: "5.10"
-
 jobs:
   # ── Vapor server build + tests ──────────────────────────────────
   server:
     name: Server Build & Test
-    runs-on: macos-15
-    timeout-minutes: 20
+    runs-on: macos-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+
+      - name: Select latest Xcode
+        run: |
+          XCODE_PATH=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          echo "Using: $XCODE_PATH"
+          sudo xcode-select -s "$XCODE_PATH"
+          xcodebuild -version
+          swift --version
 
       - name: Cache SwiftPM
         uses: actions/cache@v4
         with:
           path: .build
-          key: ${{ runner.os }}-swiftpm-${{ hashFiles('Package.resolved') }}
-          restore-keys: ${{ runner.os }}-swiftpm-
+          key: ${{ runner.os }}-swiftpm-server-${{ hashFiles('Package.resolved') }}
+          restore-keys: ${{ runner.os }}-swiftpm-server-
 
       - name: Resolve dependencies
         run: swift package resolve
@@ -38,24 +42,44 @@ jobs:
 
       - name: Run server tests
         run: swift test --filter ScholarsGalleryServerTests
+        timeout-minutes: 10
 
   # ── iOS app build + unit tests ──────────────────────────────────
   ios:
     name: iOS Build & Unit Tests
-    runs-on: macos-15
+    runs-on: macos-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode.app
+      - name: Select latest Xcode and detect simulator
+        id: xcode
+        run: |
+          XCODE_PATH=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          echo "Using: $XCODE_PATH"
+          sudo xcode-select -s "$XCODE_PATH"
+          xcodebuild -version
+
+          SIM_NAME=$(xcrun simctl list devices available -j | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          for runtime, devices in data['devices'].items():
+              if 'iOS' in runtime:
+                  for d in devices:
+                      if 'iPhone' in d['name']:
+                          print(d['name'])
+                          sys.exit(0)
+          print('iPhone 16 Pro')
+          ")
+          echo "simulator=$SIM_NAME" >> "$GITHUB_OUTPUT"
+          echo "Detected simulator: $SIM_NAME"
 
       - name: Build iOS app
         run: |
           xcodebuild -project ScholarsGallery.xcodeproj \
             -scheme ScholarsGallery \
             -configuration Debug \
-            -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+            -destination 'platform=iOS Simulator,name=${{ steps.xcode.outputs.simulator }}' \
             build
 
       - name: Run unit tests
@@ -63,28 +87,43 @@ jobs:
           xcodebuild -project ScholarsGallery.xcodeproj \
             -scheme ScholarsGallery \
             -configuration Debug \
-            -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+            -destination 'platform=iOS Simulator,name=${{ steps.xcode.outputs.simulator }}' \
             -only-testing:ScholarsGalleryTests \
             test
 
   # ── iOS UI tests ────────────────────────────────────────────────
   ui-tests:
     name: iOS UI Tests
-    runs-on: macos-15
+    runs-on: macos-latest
     timeout-minutes: 40
     needs: [ios]
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode.app
+      - name: Select latest Xcode and detect simulator
+        id: xcode
+        run: |
+          XCODE_PATH=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          sudo xcode-select -s "$XCODE_PATH"
+          SIM_NAME=$(xcrun simctl list devices available -j | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          for runtime, devices in data['devices'].items():
+              if 'iOS' in runtime:
+                  for d in devices:
+                      if 'iPhone' in d['name']:
+                          print(d['name'])
+                          sys.exit(0)
+          print('iPhone 16 Pro')
+          ")
+          echo "simulator=$SIM_NAME" >> "$GITHUB_OUTPUT"
 
       - name: Run UI tests
         run: |
           xcodebuild -project ScholarsGallery.xcodeproj \
             -scheme ScholarsGallery \
             -configuration Debug \
-            -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+            -destination 'platform=iOS Simulator,name=${{ steps.xcode.outputs.simulator }}' \
             -only-testing:ScholarsGalleryUITests \
             -disable-concurrent-testing \
             test
@@ -92,18 +131,23 @@ jobs:
   # ── Smoke test (server endpoints) ───────────────────────────────
   smoke:
     name: Server Smoke Test
-    runs-on: macos-15
+    runs-on: macos-latest
     timeout-minutes: 10
     needs: [server]
     steps:
       - uses: actions/checkout@v4
 
+      - name: Select latest Xcode
+        run: |
+          XCODE_PATH=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          sudo xcode-select -s "$XCODE_PATH"
+
       - name: Cache SwiftPM
         uses: actions/cache@v4
         with:
           path: .build
-          key: ${{ runner.os }}-swiftpm-${{ hashFiles('Package.resolved') }}
-          restore-keys: ${{ runner.os }}-swiftpm-
+          key: ${{ runner.os }}-swiftpm-server-${{ hashFiles('Package.resolved') }}
+          restore-keys: ${{ runner.os }}-swiftpm-server-
 
       - name: Build and start server
         run: |
