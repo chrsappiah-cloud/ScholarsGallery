@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:ScholarsGallery}",
+            "name": "Debug ScholarsGalleryServer",
+            "target": "ScholarsGalleryServer",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug ScholarsGalleryServer"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:ScholarsGallery}",
+            "name": "Release ScholarsGalleryServer",
+            "target": "ScholarsGalleryServer",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release ScholarsGalleryServer"
+        }
+    ]
+}
