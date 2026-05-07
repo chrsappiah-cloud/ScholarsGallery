@@ -1,0 +1,26 @@
+ScholarsGallery is a curated digital art gallery that brings the museum experience to your pocket. Explore immersive exhibitions, discover emerging artists, generate AI-powered artwork, and build your personal collection — all wrapped in a cinematic, dark-mode-first design.
+
+EXHIBITIONS
+Browse curated exhibitions with full-bleed hero imagery, ambient audio rooms, and scholarly essays. Each exhibition is a journey through generative media, digital art, and contemporary visual culture.
+
+AI GENERATION STUDIO
+Create original artwork using AI with our built-in generation studio. Describe your vision and watch it come to life. Generated works are automatically saved to your collection with full provenance.
+
+MEDIA LIBRARY
+Import your own images, audio, documents, and videos from your device or paste external URLs. Organize your creative assets alongside curated gallery content.
+
+SCHOLARSHIP
+Read curatorial essays, explore references to leading art journals (e-flux, Artforum, Rhizome, Leonardo/MIT Press, Frieze, and more), and deepen your understanding of digital and generative art.
+
+COLLECTOR EXPERIENCE
+Acquire edition-numbered digital artworks, track your collection with certificate IDs, save favorites, and share with rich social media descriptions. Your data syncs via iCloud across all your devices.
+
+FEATURES
+• Immersive dark-mode gallery with glass-morphism UI
+• AI artwork generation with auto-save to collection
+• Media library for images, audio, documents, and videos
+• Curated exhibitions with ambient room experiences
+• Scholarly essays with links to top art journals
+• Edition tracking with provenance certificates
+• iCloud sync and backup
+• Share artwork with rich social descriptions

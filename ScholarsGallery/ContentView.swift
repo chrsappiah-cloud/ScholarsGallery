@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 import Foundation
 import Combine
+import UniformTypeIdentifiers
 import GalleryCore
 import GalleryUI
 import GalleryApp
@@ -19,6 +20,13 @@ struct ContentView: View {
     ContentView()
 }
 
+// MARK: - Tab Router
+
+@MainActor
+private final class TabRouter: ObservableObject {
+    @Published var selectedTab: GalleryTab = .exhibitions
+}
+
 // MARK: - Root (backup lifecycle + meta refresh)
 
 private struct RootView: View {
@@ -27,14 +35,15 @@ private struct RootView: View {
     @StateObject private var collectionStore = CollectionStore()
     @StateObject private var favoritesStore = FavoritesStore()
     @StateObject private var galleryBackendMeta = GalleryBackendMetaModel()
+    @StateObject private var tabRouter = TabRouter()
+    @StateObject private var mediaLibrary = MediaLibraryStore()
     @State private var hasRestoredBackup = false
-    @State private var selectedTab: GalleryTab = .exhibitions
 
     var body: some View {
         ZStack(alignment: .bottom) {
             GalleryAppBackground().ignoresSafeArea()
 
-            TabView(selection: $selectedTab) {
+            TabView(selection: $tabRouter.selectedTab) {
                 ImmersiveHomeView()
                     .tag(GalleryTab.exhibitions)
                 GenerationStudioView()
@@ -48,13 +57,15 @@ private struct RootView: View {
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
 
-            FloatingNavBar(selectedTab: $selectedTab)
+            FloatingNavBar(selectedTab: $tabRouter.selectedTab)
                 .padding(.horizontal, 20)
                 .padding(.bottom, 8)
         }
         .environmentObject(collectionStore)
         .environmentObject(favoritesStore)
         .environmentObject(galleryBackendMeta)
+        .environmentObject(tabRouter)
+        .environmentObject(mediaLibrary)
         .task {
             await galleryBackendMeta.refresh()
             guard !hasRestoredBackup else { return }
@@ -285,6 +296,21 @@ private struct ImmersiveHomeView: View {
                 } label: {
                     Label(String(localized: "admin.openPanel"), systemImage: "gearshape.2")
                 }
+
+                Divider()
+
+                Link(destination: CreatorLinks.website) {
+                    Label("Website", systemImage: "globe")
+                }
+                Link(destination: CreatorLinks.email) {
+                    Label("Contact", systemImage: "envelope")
+                }
+                Link(destination: CreatorLinks.nightcafe) {
+                    Label("NightCafe Studio", systemImage: "paintpalette")
+                }
+                Link(destination: CreatorLinks.gumroad) {
+                    Label("Gumroad Store", systemImage: "cart")
+                }
             } label: {
                 Image(systemName: "ellipsis.circle")
                     .font(.system(size: 20))
@@ -357,6 +383,10 @@ private struct ImmersiveHomeView: View {
 
             // Collector CTA
             CollectorCTACard()
+                .padding(.horizontal, 20)
+
+            // Creator footer
+            CreatorLinksFooter()
                 .padding(.horizontal, 20)
         }
         .navigationDestination(for: Exhibition.self) { exhibition in
@@ -498,63 +528,171 @@ private struct CinematicExhibitionCard: View {
 // MARK: - Journal Teaser
 
 private struct JournalTeaser: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            GallerySectionHeader(title: "JOURNAL", subtitle: "Critical writing on generative art")
+    @StateObject private var vm = JournalTeaserViewModel()
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Generative Art as Scholarly Surface")
-                    .font(.system(size: 16, weight: .semibold, design: .serif))
-                    .foregroundStyle(GalleryTheme.textPrimary)
-                Text("Exploring the intersection of algorithmic creation and curatorial practice in digital museum spaces.")
-                    .font(.caption)
-                    .foregroundStyle(GalleryTheme.textSecondary)
-                    .lineLimit(3)
-                HStack {
-                    Text("ScholarsGallery Editorial Board")
-                        .font(.caption2.weight(.medium))
-                        .foregroundStyle(GalleryTheme.accent)
-                    Spacer()
-                    Text("READ →")
-                        .font(.caption2.weight(.bold))
-                        .tracking(1)
-                        .foregroundStyle(GalleryTheme.gold)
+    var body: some View {
+        if let essay = vm.leadEssay {
+            VStack(alignment: .leading, spacing: 12) {
+                GallerySectionHeader(title: "JOURNAL", subtitle: "Critical writing on generative art")
+
+                NavigationLink {
+                    ScholarshipDetailView(summary: ScholarlyEssaySummary(
+                        id: essay.id, title: essay.title, author: essay.author))
+                } label: {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(essay.title)
+                            .font(.system(size: 16, weight: .semibold, design: .serif))
+                            .foregroundStyle(GalleryTheme.textPrimary)
+                            .multilineTextAlignment(.leading)
+                        Text(essay.excerpt)
+                            .font(.caption)
+                            .foregroundStyle(GalleryTheme.textSecondary)
+                            .lineLimit(3)
+                            .multilineTextAlignment(.leading)
+                        HStack {
+                            Text(essay.author)
+                                .font(.caption2.weight(.medium))
+                                .foregroundStyle(GalleryTheme.accent)
+                            Spacer()
+                            Text("READ →")
+                                .font(.caption2.weight(.bold))
+                                .tracking(1)
+                                .foregroundStyle(GalleryTheme.gold)
+                        }
+                    }
+                    .padding(16)
+                    .glassCard(cornerRadius: 16)
+                }
+                .buttonStyle(.plain)
+
+                if vm.essays.count > 1 {
+                    ForEach(vm.essays.dropFirst()) { extra in
+                        NavigationLink {
+                            ScholarshipDetailView(summary: ScholarlyEssaySummary(
+                                id: extra.id, title: extra.title, author: extra.author))
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "book.pages.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(GalleryTheme.accent)
+                                    .frame(width: 28, height: 28)
+                                    .background(GalleryTheme.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(extra.title)
+                                        .font(.system(size: 13, weight: .semibold, design: .serif))
+                                        .foregroundStyle(GalleryTheme.textPrimary)
+                                        .lineLimit(1)
+                                    Text(extra.author)
+                                        .font(.caption2)
+                                        .foregroundStyle(GalleryTheme.textTertiary)
+                                }
+                                Spacer(minLength: 0)
+                                Text("READ →")
+                                    .font(.system(size: 8, weight: .bold))
+                                    .tracking(1)
+                                    .foregroundStyle(GalleryTheme.gold)
+                            }
+                            .padding(12)
+                            .glassCard(cornerRadius: 14)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
             }
-            .padding(16)
-            .glassCard(cornerRadius: 16)
         }
+    }
+}
+
+@MainActor
+private final class JournalTeaserViewModel: ObservableObject {
+    struct TeaserEssay: Identifiable {
+        let id: String
+        let title: String
+        let author: String
+        let excerpt: String
+    }
+
+    @Published var essays: [TeaserEssay] = []
+    var leadEssay: TeaserEssay? { essays.first }
+
+    init() { Task { await load() } }
+
+    func load() async {
+        guard let summaries = try? await GalleryAPI.fetchEssaySummaries() else { return }
+        var result: [TeaserEssay] = []
+        for summary in summaries.prefix(3) {
+            if let full = try? await GalleryAPI.fetchEssay(id: summary.id) {
+                let excerpt = String(full.markdownBody.prefix(180))
+                    .replacingOccurrences(of: "\n", with: " ")
+                    .appending(full.markdownBody.count > 180 ? "…" : "")
+                result.append(TeaserEssay(id: summary.id, title: summary.title,
+                                          author: summary.author, excerpt: excerpt))
+            } else {
+                result.append(TeaserEssay(id: summary.id, title: summary.title,
+                                          author: summary.author, excerpt: ""))
+            }
+        }
+        essays = result
     }
 }
 
 // MARK: - Artist Spotlight
 
 private struct ArtistSpotlightSection: View {
+    @State private var selectedArtist: SpotlightArtist?
+
+    private let artists: [SpotlightArtist] = [
+        SpotlightArtist(
+            name: "Algorithmic Collective",
+            role: "Generative Media",
+            initial: "A",
+            bio: "A distributed collective of computational artists exploring emergent visual systems, neural aesthetics, and code-driven installations. Their work bridges machine learning pipelines with gallery-grade presentation.",
+            exhibitionSlugs: ["worlds-written-in-light"]
+        ),
+        SpotlightArtist(
+            name: "Curatorial Systems Lab",
+            role: "Research & Curation",
+            initial: "C",
+            bio: "An interdisciplinary research group at the intersection of museum informatics and generative AI. They develop frameworks for presenting algorithmic art within scholarly exhibition contexts.",
+            exhibitionSlugs: ["worlds-written-in-light"]
+        ),
+        SpotlightArtist(
+            name: "WCS Studio",
+            role: "Platform Design",
+            initial: "W",
+            bio: "The creative engine behind the World Computational Salon platform — designing the tools, interfaces, and spatial experiences that make computational art accessible to collectors and scholars alike.",
+            exhibitionSlugs: ["worlds-written-in-light"]
+        ),
+    ]
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             GallerySectionHeader(title: "ARTIST SPOTLIGHT", subtitle: "Featured creators")
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 14) {
-                    ArtistSpotlightCard(
-                        name: "Algorithmic Collective",
-                        role: "Generative Media",
-                        initial: "A"
-                    )
-                    ArtistSpotlightCard(
-                        name: "Curatorial Systems Lab",
-                        role: "Research & Curation",
-                        initial: "C"
-                    )
-                    ArtistSpotlightCard(
-                        name: "WCS Studio",
-                        role: "Platform Design",
-                        initial: "W"
-                    )
+                    ForEach(artists) { artist in
+                        Button { selectedArtist = artist } label: {
+                            ArtistSpotlightCard(name: artist.name, role: artist.role, initial: artist.initial)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
             }
         }
+        .sheet(item: $selectedArtist) { artist in
+            ArtistDetailSheet(artist: artist)
+        }
     }
+}
+
+private struct SpotlightArtist: Identifiable {
+    let id = UUID()
+    let name: String
+    let role: String
+    let initial: String
+    let bio: String
+    let exhibitionSlugs: [String]
 }
 
 private struct ArtistSpotlightCard: View {
@@ -587,30 +725,178 @@ private struct ArtistSpotlightCard: View {
     }
 }
 
+private struct ArtistDetailSheet: View {
+    let artist: SpotlightArtist
+    @Environment(\.dismiss) private var dismiss
+    @StateObject private var vm = ArtistDetailSheetViewModel()
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 20) {
+                    ZStack(alignment: .bottomLeading) {
+                        Rectangle()
+                            .fill(GalleryTheme.heroCardGradient)
+                            .frame(height: 200)
+                            .overlay { SparkleJewelOverlay().scaleEffect(1.3).opacity(0.6) }
+                            .overlay { GalleryTheme.fadeToBlack }
+
+                        HStack(spacing: 16) {
+                            ZStack {
+                                Circle()
+                                    .fill(GalleryTheme.accent.opacity(0.3))
+                                    .frame(width: 64, height: 64)
+                                Text(artist.initial)
+                                    .font(.system(size: 28, weight: .bold, design: .serif))
+                                    .foregroundStyle(.white)
+                            }
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(artist.name)
+                                    .font(.system(size: 20, weight: .bold, design: .serif))
+                                    .foregroundStyle(.white)
+                                Text(artist.role.uppercased())
+                                    .font(.system(size: 10, weight: .bold))
+                                    .tracking(2)
+                                    .foregroundStyle(GalleryTheme.accent)
+                            }
+                        }
+                        .padding(20)
+                    }
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("BIOGRAPHY")
+                            .font(.system(size: 10, weight: .bold))
+                            .tracking(2)
+                            .foregroundStyle(GalleryTheme.gold)
+                        Text(artist.bio)
+                            .font(.callout)
+                            .foregroundStyle(GalleryTheme.textSecondary)
+                            .lineSpacing(4)
+                    }
+                    .padding(.horizontal, 20)
+
+                    if !vm.artworks.isEmpty {
+                        VStack(alignment: .leading, spacing: 14) {
+                            GallerySectionHeader(title: "WORKS", subtitle: "\(vm.artworks.count) artworks in current exhibition")
+                                .padding(.horizontal, 20)
+
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 14) {
+                                    ForEach(vm.artworks) { artwork in
+                                        NavigationLink {
+                                            ImmersiveArtworkDetailView(artwork: artwork)
+                                        } label: {
+                                            FeaturedArtworkCell(artwork: artwork)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                                .padding(.horizontal, 20)
+                            }
+                        }
+                    } else if vm.isLoading {
+                        ProgressView()
+                            .tint(GalleryTheme.accent)
+                            .frame(maxWidth: .infinity, minHeight: 100)
+                    }
+
+                    if !artist.exhibitionSlugs.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("EXHIBITIONS")
+                                .font(.system(size: 10, weight: .bold))
+                                .tracking(2)
+                                .foregroundStyle(GalleryTheme.gold)
+                            ForEach(artist.exhibitionSlugs, id: \.self) { slug in
+                                HStack(spacing: 8) {
+                                    Image(systemName: "rectangle.stack.fill")
+                                        .font(.caption2)
+                                        .foregroundStyle(GalleryTheme.accent)
+                                    Text(slug.replacingOccurrences(of: "-", with: " ").capitalized)
+                                        .font(.subheadline)
+                                        .foregroundStyle(GalleryTheme.textPrimary)
+                                }
+                                .padding(12)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .glassCard(cornerRadius: 12)
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                    }
+                }
+                .padding(.bottom, 40)
+            }
+            .background(GalleryAppBackground().ignoresSafeArea())
+            .navigationTitle(artist.name)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { dismiss() } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(GalleryTheme.textTertiary)
+                    }
+                }
+            }
+            .task {
+                await vm.load(exhibitionSlugs: artist.exhibitionSlugs)
+            }
+        }
+    }
+}
+
+@MainActor
+private final class ArtistDetailSheetViewModel: ObservableObject {
+    @Published var artworks: [ArtworkPackage] = []
+    @Published var isLoading = false
+
+    func load(exhibitionSlugs: [String]) async {
+        isLoading = true
+        defer { isLoading = false }
+        for slug in exhibitionSlugs {
+            if let works = try? await GalleryAPI.fetchArtworks(exhibitionSlug: slug) {
+                artworks.append(contentsOf: works)
+            }
+        }
+    }
+}
+
 // MARK: - Collector CTA
 
 private struct CollectorCTACard: View {
+    @EnvironmentObject private var tabRouter: TabRouter
+
     var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "diamond.fill")
-                .font(.system(size: 28))
-                .foregroundStyle(GalleryTheme.gold)
-            Text("Begin Your Collection")
-                .font(.system(size: 18, weight: .bold, design: .serif))
-                .foregroundStyle(GalleryTheme.textPrimary)
-            Text("Acquire limited-edition generative artworks with certificates of authenticity.")
-                .font(.caption)
-                .foregroundStyle(GalleryTheme.textSecondary)
-                .multilineTextAlignment(.center)
-            Text("EXPLORE EDITIONS →")
-                .font(.caption.weight(.bold))
-                .tracking(1.5)
+        Button {
+            withAnimation(.easeInOut(duration: 0.25)) {
+                tabRouter.selectedTab = .collection
+            }
+        } label: {
+            VStack(spacing: 12) {
+                Image(systemName: "diamond.fill")
+                    .font(.system(size: 28))
+                    .foregroundStyle(GalleryTheme.gold)
+                Text("Begin Your Collection")
+                    .font(.system(size: 18, weight: .bold, design: .serif))
+                    .foregroundStyle(GalleryTheme.textPrimary)
+                Text("Acquire limited-edition generative artworks with certificates of authenticity.")
+                    .font(.caption)
+                    .foregroundStyle(GalleryTheme.textSecondary)
+                    .multilineTextAlignment(.center)
+                HStack(spacing: 6) {
+                    Text("EXPLORE EDITIONS")
+                        .font(.caption.weight(.bold))
+                        .tracking(1.5)
+                    Image(systemName: "arrow.right")
+                        .font(.caption2.weight(.bold))
+                }
                 .foregroundStyle(GalleryTheme.accent)
                 .padding(.top, 4)
+            }
+            .padding(24)
+            .frame(maxWidth: .infinity)
+            .glassCard(cornerRadius: 20)
         }
-        .padding(24)
-        .frame(maxWidth: .infinity)
-        .glassCard(cornerRadius: 20)
+        .buttonStyle(.plain)
     }
 }
 
@@ -980,7 +1266,11 @@ private struct ImmersiveArtworkDetailView: View {
                                 }
                                 .buttonStyle(.plain)
 
-                                ShareLink(item: artwork.displayManifest.heroAssetURL) {
+                                ShareLink(
+                                    item: artwork.displayManifest.heroAssetURL,
+                                    subject: Text(artwork.title),
+                                    message: Text(Self.socialDescription(for: artwork))
+                                ) {
                                     Label("Share", systemImage: "square.and.arrow.up")
                                         .frame(maxWidth: .infinity)
                                         .font(.subheadline.weight(.medium))
@@ -1008,6 +1298,29 @@ private struct ImmersiveArtworkDetailView: View {
         .navigationTitle(String(localized: "artwork.navTitle"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
+    }
+
+    private static func socialDescription(for artwork: ArtworkPackage) -> String {
+        var parts: [String] = []
+        parts.append("\"\(artwork.title)\"")
+
+        let tagLine = artwork.tags.joined(separator: " · ")
+        if !tagLine.isEmpty { parts.append(tagLine) }
+
+        let label = artwork.displayManifest.wallLabelMarkdown
+            .replacingOccurrences(of: "**", with: "")
+            .replacingOccurrences(of: "*", with: "")
+        if !label.isEmpty {
+            let trimmed = label.count > 160 ? String(label.prefix(157)) + "…" : label
+            parts.append(trimmed)
+        }
+
+        if let ed = artwork.edition {
+            parts.append("Edition \(ed.number)/\(ed.total)")
+        }
+
+        parts.append("Presented by ScholarsGallery — curated digital art")
+        return parts.joined(separator: "\n\n")
     }
 }
 
@@ -1039,11 +1352,26 @@ private struct ScholarlyEssayView: View {
                         .font(.headline)
                         .foregroundStyle(GalleryTheme.textPrimary)
                     ForEach(essay.references, id: \.self) { ref in
-                        Text("• \(ref)")
-                            .font(.caption)
-                            .foregroundStyle(GalleryTheme.textTertiary)
+                        if let link = ArtJournalDirectory.url(for: ref) {
+                            Link(destination: link) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "arrow.up.right.square")
+                                        .font(.caption2)
+                                        .foregroundStyle(GalleryTheme.accent)
+                                    Text(ref)
+                                        .font(.caption.weight(.medium))
+                                        .foregroundStyle(GalleryTheme.accent)
+                                }
+                            }
+                        } else {
+                            Text("• \(ref)")
+                                .font(.caption)
+                                .foregroundStyle(GalleryTheme.textTertiary)
+                        }
                     }
                 }
+
+                ArtJournalLinksSection()
             }
             .padding(20)
         } else if isLoading {
@@ -1071,161 +1399,25 @@ private struct ScholarlyEssayView: View {
 @MainActor
 private struct GenerationStudioView: View {
     @EnvironmentObject private var galleryBackendMeta: GalleryBackendMetaModel
+    @EnvironmentObject private var collectionStore: CollectionStore
+    @EnvironmentObject private var mediaLibrary: MediaLibraryStore
     @StateObject private var vm = GenerationStudioViewModel()
     @State private var showDolaSheet = false
+    @State private var showUploadSection = false
+    @State private var savedToCollection = false
 
     var body: some View {
         NavigationStack {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 20) {
-                    // Studio header
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack(spacing: 10) {
-                            Image(systemName: "sparkles.rectangle.stack.fill")
-                                .font(.title2)
-                                .foregroundStyle(GalleryTheme.accent)
-                            Text(String(localized: "studio.promptLabel"))
-                                .font(.system(size: 20, weight: .bold, design: .serif))
-                                .foregroundStyle(GalleryTheme.textPrimary)
-                        }
-                        Text("CREATE · REFINE · GENERATE")
-                            .font(.system(size: 9, weight: .semibold))
-                            .tracking(2)
-                            .foregroundStyle(GalleryTheme.textTertiary)
-                    }
-                    .padding(18)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .glassCard(cornerRadius: 20)
-                    .overlay(alignment: .topTrailing) {
-                        SparkleJewelOverlay().padding(12)
-                    }
-
-                    // Prompt editor
-                    TextEditor(text: $vm.prompt)
-                        .accessibilityIdentifier("studio.promptEditor")
-                        .frame(minHeight: 140)
-                        .padding(14)
-                        .scrollContentBackground(.hidden)
-                        .foregroundStyle(GalleryTheme.textPrimary)
-                        .font(.callout)
-                        .background(GalleryTheme.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .stroke(GalleryTheme.glassStroke, lineWidth: 1)
-                        )
-
-                    // Dola button
-                    if galleryBackendMeta.meta?.effectiveDolaAssistantEnabled ?? true {
-                        Button {
-                            showDolaSheet = true
-                        } label: {
-                            Label(String(localized: "studio.askDola"), systemImage: "sparkles")
-                                .frame(maxWidth: .infinity)
-                                .font(.subheadline.weight(.medium))
-                                .foregroundStyle(GalleryTheme.accent)
-                                .padding(.vertical, 12)
-                                .glassCard(cornerRadius: 12)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("studio.askDolaButton")
-                    }
-
-                    // Generate button
-                    Button {
-                        Task { await vm.generate() }
-                    } label: {
-                        if vm.isGenerating {
-                            ProgressView().tint(.white).frame(maxWidth: .infinity)
-                        } else {
-                            Label(String(localized: "studio.generateArtwork"), systemImage: "wand.and.stars")
-                                .labelStyle(.titleAndIcon)
-                                .frame(maxWidth: .infinity)
-                        }
-                    }
-                    .accessibilityIdentifier("studio.generateButton")
-                    .buttonStyle(GalleryProminentButtonStyle())
-                    .disabled(
-                        vm.isGenerating
-                        || vm.prompt.trimmingCharacters(in: .whitespacesAndNewlines).count < 12
-                        || !(galleryBackendMeta.meta?.effectiveGenerationEnabled ?? true)
-                    )
-
-                    if let error = vm.errorMessage {
-                        Text(error)
-                            .accessibilityIdentifier("studio.errorMessage")
-                            .font(.caption)
-                            .foregroundStyle(GalleryTheme.rose)
-                    }
-
-                    // Generated result
-                    if let generated = vm.generated {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text(String(localized: "studio.result"))
-                                .font(.system(size: 14, weight: .bold, design: .serif))
-                                .foregroundStyle(GalleryTheme.textPrimary)
-                            AsyncImage(url: URL(string: generated.imageURL)) { phase in
-                                switch phase {
-                                case .empty:
-                                    CinematicImagePlaceholder(height: 220, cornerRadius: 14)
-                                case .success(let image):
-                                    image
-                                        .resizable()
-                                        .interpolation(.high)
-                                        .scaledToFit()
-                                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                                        .shadow(color: GalleryTheme.accent.opacity(0.2), radius: 12, y: 6)
-                                case .failure:
-                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                        .fill(GalleryTheme.surface)
-                                        .frame(height: 220)
-                                        .overlay {
-                                            Image(systemName: "photo.badge.exclamationmark")
-                                                .font(.title2)
-                                                .foregroundStyle(GalleryTheme.textTertiary)
-                                        }
-                                @unknown default:
-                                    EmptyView()
-                                }
-                            }
-                            HStack {
-                                Text(String(format: String(localized: "studio.providerFormat"), generated.provider))
-                                    .accessibilityIdentifier("studio.resultProvider")
-                                Spacer()
-                                Text(String(format: String(localized: "studio.statusFormat"), generated.status))
-                            }
-                            .font(.caption2)
-                            .foregroundStyle(GalleryTheme.textTertiary)
-                        }
-                        .padding(16)
-                        .glassCard(cornerRadius: 18)
-                    }
-
-                    // Recent generations
-                    if !vm.recentGenerations.isEmpty {
-                        VStack(alignment: .leading, spacing: 12) {
-                            GallerySectionHeader(title: String(localized: "studio.recentGenerations"))
-
-                            ForEach(vm.recentGenerations) { item in
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text(item.prompt)
-                                        .font(.subheadline)
-                                        .foregroundStyle(GalleryTheme.textPrimary)
-                                        .lineLimit(2)
-                                    Text("\(item.provider.uppercased()) · \(item.createdAt.formatted(date: .abbreviated, time: .shortened))")
-                                        .font(.caption2)
-                                        .foregroundStyle(GalleryTheme.textTertiary)
-                                }
-                                .padding(14)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .overlay(alignment: .leading) {
-                                    Rectangle()
-                                        .fill(GalleryTheme.accent.opacity(0.5))
-                                        .frame(width: 3)
-                                }
-                                .glassCard(cornerRadius: 14)
-                            }
-                        }
-                    }
+                    studioHeader
+                    promptEditor
+                    dolaButton
+                    generateButton
+                    errorBanner
+                    generatedResult
+                    uploadMediaSection
+                    recentGenerations
                 }
                 .padding(20)
                 .padding(.bottom, 100)
@@ -1233,6 +1425,16 @@ private struct GenerationStudioView: View {
             .background(GalleryAppBackground().ignoresSafeArea())
             .navigationTitle(String(localized: "studio.navTitle"))
             .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        withAnimation { showUploadSection.toggle() }
+                    } label: {
+                        Label("Upload Media", systemImage: "plus.circle")
+                    }
+                    .tint(GalleryTheme.accent)
+                }
+            }
             .sheet(isPresented: $showDolaSheet) {
                 DolaAssistantSheet(initialPrompt: vm.prompt) { picked in
                     vm.prompt = picked
@@ -1241,6 +1443,635 @@ private struct GenerationStudioView: View {
             }
             .task { await vm.loadRecent() }
         }
+    }
+
+    // MARK: - Studio Header
+
+    private var studioHeader: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 10) {
+                Image(systemName: "sparkles.rectangle.stack.fill")
+                    .font(.title2)
+                    .foregroundStyle(GalleryTheme.accent)
+                Text(String(localized: "studio.promptLabel"))
+                    .font(.system(size: 20, weight: .bold, design: .serif))
+                    .foregroundStyle(GalleryTheme.textPrimary)
+            }
+            Text("CREATE · REFINE · GENERATE")
+                .font(.system(size: 9, weight: .semibold))
+                .tracking(2)
+                .foregroundStyle(GalleryTheme.textTertiary)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .glassCard(cornerRadius: 20)
+        .overlay(alignment: .topTrailing) {
+            SparkleJewelOverlay().padding(12)
+        }
+    }
+
+    // MARK: - Prompt Editor
+
+    private var promptEditor: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("PROMPT")
+                    .font(.system(size: 9, weight: .bold))
+                    .tracking(2)
+                    .foregroundStyle(GalleryTheme.textTertiary)
+                Spacer()
+                Text("\(vm.prompt.trimmingCharacters(in: .whitespacesAndNewlines).count) chars")
+                    .font(.system(size: 9, weight: .medium, design: .monospaced))
+                    .foregroundStyle(
+                        vm.prompt.trimmingCharacters(in: .whitespacesAndNewlines).count < 12
+                        ? GalleryTheme.rose : GalleryTheme.accent
+                    )
+            }
+
+            TextEditor(text: $vm.prompt)
+                .accessibilityIdentifier("studio.promptEditor")
+                .frame(minHeight: 120)
+                .padding(14)
+                .scrollContentBackground(.hidden)
+                .foregroundStyle(GalleryTheme.textPrimary)
+                .font(.callout)
+                .background(GalleryTheme.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(GalleryTheme.glassStroke, lineWidth: 1)
+                )
+        }
+    }
+
+    // MARK: - Dola Button
+
+    @ViewBuilder
+    private var dolaButton: some View {
+        if galleryBackendMeta.meta?.effectiveDolaAssistantEnabled ?? true {
+            Button {
+                showDolaSheet = true
+            } label: {
+                Label(String(localized: "studio.askDola"), systemImage: "sparkles")
+                    .frame(maxWidth: .infinity)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(GalleryTheme.accent)
+                    .padding(.vertical, 12)
+                    .glassCard(cornerRadius: 12)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("studio.askDolaButton")
+        }
+    }
+
+    // MARK: - Generate Button
+
+    private var generateButton: some View {
+        Button {
+            savedToCollection = false
+            Task {
+                await vm.generate()
+                if let gen = vm.generated, vm.errorMessage == nil {
+                    autoSaveToCollection(gen)
+                }
+            }
+        } label: {
+            if vm.isGenerating {
+                HStack(spacing: 10) {
+                    ProgressView().tint(.white)
+                    Text("Generating…")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.8))
+                }
+                .frame(maxWidth: .infinity)
+            } else {
+                Label(String(localized: "studio.generateArtwork"), systemImage: "wand.and.stars")
+                    .labelStyle(.titleAndIcon)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+        .accessibilityIdentifier("studio.generateButton")
+        .buttonStyle(GalleryProminentButtonStyle())
+        .disabled(
+            vm.isGenerating
+            || vm.prompt.trimmingCharacters(in: .whitespacesAndNewlines).count < 12
+            || !(galleryBackendMeta.meta?.effectiveGenerationEnabled ?? true)
+        )
+    }
+
+    // MARK: - Error Banner
+
+    @ViewBuilder
+    private var errorBanner: some View {
+        if let error = vm.errorMessage {
+            HStack(spacing: 10) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 14))
+                    .foregroundStyle(GalleryTheme.rose)
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(GalleryTheme.rose)
+                Spacer()
+                Button("Retry") {
+                    Task { await vm.generate() }
+                }
+                .font(.caption.weight(.bold))
+                .foregroundStyle(GalleryTheme.accent)
+            }
+            .padding(14)
+            .glassCard(cornerRadius: 12)
+            .accessibilityIdentifier("studio.errorMessage")
+        }
+    }
+
+    // MARK: - Generated Result
+
+    @ViewBuilder
+    private var generatedResult: some View {
+        if let generated = vm.generated {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text(String(localized: "studio.result"))
+                        .font(.system(size: 14, weight: .bold, design: .serif))
+                        .foregroundStyle(GalleryTheme.textPrimary)
+                    Spacer()
+                    if savedToCollection {
+                        Label("Saved to Collection", systemImage: "checkmark.circle.fill")
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(.green)
+                            .transition(.opacity.combined(with: .scale))
+                    }
+                }
+
+                AsyncImage(url: URL(string: generated.imageURL)) { phase in
+                    switch phase {
+                    case .empty:
+                        CinematicImagePlaceholder(height: 220, cornerRadius: 14)
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .interpolation(.high)
+                            .scaledToFit()
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .shadow(color: GalleryTheme.accent.opacity(0.2), radius: 12, y: 6)
+                    case .failure:
+                        VStack(spacing: 10) {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.title2)
+                                .foregroundStyle(GalleryTheme.textTertiary)
+                            Text("Image failed to load — tap to retry")
+                                .font(.caption)
+                                .foregroundStyle(GalleryTheme.textTertiary)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 220)
+                        .glassCard(cornerRadius: 14)
+                    @unknown default:
+                        EmptyView()
+                    }
+                }
+
+                HStack {
+                    Text(String(format: String(localized: "studio.providerFormat"), generated.provider))
+                        .accessibilityIdentifier("studio.resultProvider")
+                    Spacer()
+                    Text(String(format: String(localized: "studio.statusFormat"), generated.status))
+                }
+                .font(.caption2)
+                .foregroundStyle(GalleryTheme.textTertiary)
+
+                HStack(spacing: 10) {
+                    if let shareURL = URL(string: generated.imageURL) {
+                        ShareLink(
+                            item: shareURL,
+                            subject: Text("AI-Generated Artwork — ScholarsGallery"),
+                            message: Text(Self.generatedShareDescription(prompt: vm.prompt, provider: generated.provider))
+                        ) {
+                            Label("Share", systemImage: "square.and.arrow.up")
+                                .frame(maxWidth: .infinity)
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(GalleryTheme.accent)
+                                .padding(.vertical, 12)
+                                .glassCard(cornerRadius: 12)
+                        }
+                    }
+
+                    if !savedToCollection {
+                        Button {
+                            autoSaveToCollection(generated)
+                        } label: {
+                            Label("Save to Collection", systemImage: "square.and.arrow.down")
+                                .frame(maxWidth: .infinity)
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(GalleryTheme.gold)
+                                .padding(.vertical, 12)
+                                .glassCard(cornerRadius: 12)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .padding(16)
+            .glassCard(cornerRadius: 18)
+            .animation(.easeInOut(duration: 0.3), value: savedToCollection)
+        }
+    }
+
+    // MARK: - Upload Media Section
+
+    @ViewBuilder
+    private var uploadMediaSection: some View {
+        if showUploadSection {
+            MediaUploadPanel()
+        }
+
+        if !mediaLibrary.items.isEmpty {
+            MediaLibraryBrowser()
+        }
+    }
+
+    // MARK: - Recent Generations
+
+    @ViewBuilder
+    private var recentGenerations: some View {
+        if !vm.recentGenerations.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                GallerySectionHeader(title: String(localized: "studio.recentGenerations"))
+
+                ForEach(vm.recentGenerations) { item in
+                    HStack(spacing: 12) {
+                        AsyncImage(url: URL(string: item.imageURL)) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image.resizable().interpolation(.high).scaledToFill()
+                                    .frame(width: 48, height: 48)
+                                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            default:
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(GalleryTheme.surface)
+                                    .frame(width: 48, height: 48)
+                                    .overlay {
+                                        Image(systemName: "sparkles")
+                                            .font(.caption)
+                                            .foregroundStyle(GalleryTheme.textTertiary)
+                                    }
+                            }
+                        }
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(item.prompt)
+                                .font(.subheadline)
+                                .foregroundStyle(GalleryTheme.textPrimary)
+                                .lineLimit(2)
+                            Text("\(item.provider.uppercased()) · \(item.createdAt.formatted(date: .abbreviated, time: .shortened))")
+                                .font(.caption2)
+                                .foregroundStyle(GalleryTheme.textTertiary)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .padding(12)
+                    .glassCard(cornerRadius: 14)
+                }
+            }
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func autoSaveToCollection(_ generated: GeneratedArtwork) {
+        collectionStore.add(artworkID: generated.id)
+
+        let mediaItem = MediaItem(
+            id: generated.id, kind: .image,
+            title: String(generated.prompt.prefix(60)),
+            sourceDescription: "AI Generated via \(generated.provider)",
+            fileURL: generated.imageURL,
+            addedAt: generated.createdAt, isExternal: true
+        )
+        mediaLibrary.add(mediaItem)
+
+        withAnimation { savedToCollection = true }
+    }
+
+    private static func generatedShareDescription(prompt: String, provider: String) -> String {
+        let trimmedPrompt = prompt.count > 120 ? String(prompt.prefix(117)) + "…" : prompt
+        return """
+        ✨ Just created this with AI on ScholarsGallery
+
+        Prompt: "\(trimmedPrompt)"
+
+        Generated via \(provider) · Curated digital art studio
+        #ScholarsGallery #AIArt #GenerativeArt #DigitalArt
+        """
+    }
+}
+
+// MARK: - Media Upload Panel
+
+@MainActor
+private struct MediaUploadPanel: View {
+    @EnvironmentObject private var mediaLibrary: MediaLibraryStore
+    @State private var selectedKind: MediaItemKind = .image
+    @State private var showFilePicker = false
+    @State private var showLinkInput = false
+    @State private var externalTitle = ""
+    @State private var externalURL = ""
+    @State private var importStatus: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 8) {
+                Image(systemName: "arrow.up.doc.fill")
+                    .font(.system(size: 14))
+                    .foregroundStyle(GalleryTheme.accent)
+                Text("UPLOAD MEDIA")
+                    .font(.system(size: 10, weight: .bold))
+                    .tracking(2)
+                    .foregroundStyle(GalleryTheme.gold)
+            }
+
+            Text("Import from your device or add external links")
+                .font(.caption)
+                .foregroundStyle(GalleryTheme.textTertiary)
+
+            Picker("Media Type", selection: $selectedKind) {
+                ForEach(MediaItemKind.allCases) { kind in
+                    Label(kind.label, systemImage: kind.icon).tag(kind)
+                }
+            }
+            .pickerStyle(.segmented)
+            .colorMultiply(GalleryTheme.accent)
+
+            HStack(spacing: 12) {
+                Button {
+                    showFilePicker = true
+                } label: {
+                    VStack(spacing: 8) {
+                        Image(systemName: "folder.badge.plus")
+                            .font(.system(size: 20))
+                            .foregroundStyle(selectedKind.tint)
+                        Text("From Device")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(GalleryTheme.textPrimary)
+                        Text("Browse local files")
+                            .font(.system(size: 9))
+                            .foregroundStyle(GalleryTheme.textTertiary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 18)
+                    .glassCard(cornerRadius: 14)
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    withAnimation { showLinkInput.toggle() }
+                } label: {
+                    VStack(spacing: 8) {
+                        Image(systemName: "link.badge.plus")
+                            .font(.system(size: 20))
+                            .foregroundStyle(selectedKind.tint)
+                        Text("External Link")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(GalleryTheme.textPrimary)
+                        Text("Paste a URL")
+                            .font(.system(size: 9))
+                            .foregroundStyle(GalleryTheme.textTertiary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 18)
+                    .glassCard(cornerRadius: 14)
+                }
+                .buttonStyle(.plain)
+            }
+
+            if showLinkInput {
+                VStack(spacing: 10) {
+                    TextField("Title", text: $externalTitle)
+                        .font(.callout)
+                        .foregroundStyle(GalleryTheme.textPrimary)
+                        .padding(12)
+                        .background(GalleryTheme.surface, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(GalleryTheme.glassStroke, lineWidth: 1)
+                        )
+
+                    TextField("https://…", text: $externalURL)
+                        .font(.callout)
+                        .foregroundStyle(GalleryTheme.textPrimary)
+                        .keyboardType(.URL)
+                        .autocapitalization(.none)
+                        .padding(12)
+                        .background(GalleryTheme.surface, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(GalleryTheme.glassStroke, lineWidth: 1)
+                        )
+
+                    Button {
+                        addExternalLink()
+                    } label: {
+                        Label("Add \(selectedKind.label)", systemImage: "plus.circle.fill")
+                            .frame(maxWidth: .infinity)
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .buttonStyle(GalleryProminentButtonStyle())
+                    .disabled(externalTitle.isEmpty || URL(string: externalURL) == nil)
+                }
+            }
+
+            if let status = importStatus {
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                    Text(status)
+                        .font(.caption)
+                        .foregroundStyle(GalleryTheme.textSecondary)
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .padding(16)
+        .glassCard(cornerRadius: 18)
+        .animation(.easeInOut(duration: 0.25), value: showLinkInput)
+        .animation(.easeInOut(duration: 0.3), value: importStatus)
+        .fileImporter(
+            isPresented: $showFilePicker,
+            allowedContentTypes: selectedKind.allowedUTTypes,
+            allowsMultipleSelection: true
+        ) { result in
+            handleFileImport(result)
+        }
+    }
+
+    private func addExternalLink() {
+        guard let url = URL(string: externalURL), !externalTitle.isEmpty else { return }
+        let item = MediaItem(
+            id: UUID(), kind: selectedKind,
+            title: externalTitle,
+            sourceDescription: url.host ?? "External link",
+            fileURL: url.absoluteString,
+            addedAt: Date(), isExternal: true
+        )
+        mediaLibrary.add(item)
+        importStatus = "\(selectedKind.label) link added"
+        externalTitle = ""
+        externalURL = ""
+        withAnimation { showLinkInput = false }
+        Task {
+            try? await Task.sleep(for: .seconds(3))
+            importStatus = nil
+        }
+    }
+
+    private func handleFileImport(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            var count = 0
+            for url in urls {
+                let title = url.deletingPathExtension().lastPathComponent
+                if let item = mediaLibrary.copyLocalFile(url, kind: selectedKind, title: title) {
+                    mediaLibrary.add(item)
+                    count += 1
+                }
+            }
+            importStatus = "\(count) \(selectedKind.label.lowercased())\(count == 1 ? "" : "s") imported"
+            Task {
+                try? await Task.sleep(for: .seconds(3))
+                importStatus = nil
+            }
+        case .failure(let error):
+            importStatus = "Import failed: \(error.localizedDescription)"
+            Task {
+                try? await Task.sleep(for: .seconds(4))
+                importStatus = nil
+            }
+        }
+    }
+}
+
+// MARK: - Media Library Browser
+
+@MainActor
+private struct MediaLibraryBrowser: View {
+    @EnvironmentObject private var mediaLibrary: MediaLibraryStore
+    @State private var filterKind: MediaItemKind?
+
+    private var filteredItems: [MediaItem] {
+        if let kind = filterKind { return mediaLibrary.items(ofKind: kind) }
+        return mediaLibrary.items
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("MEDIA LIBRARY")
+                        .font(.system(size: 10, weight: .bold))
+                        .tracking(2)
+                        .foregroundStyle(GalleryTheme.gold)
+                    Text("\(mediaLibrary.items.count) items")
+                        .font(.caption2)
+                        .foregroundStyle(GalleryTheme.textTertiary)
+                }
+                Spacer()
+
+                Menu {
+                    Button("All") { filterKind = nil }
+                    ForEach(MediaItemKind.allCases) { kind in
+                        Button {
+                            filterKind = kind
+                        } label: {
+                            Label(kind.label, systemImage: kind.icon)
+                        }
+                    }
+                } label: {
+                    Label(filterKind?.label ?? "All", systemImage: "line.3.horizontal.decrease.circle")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(GalleryTheme.accent)
+                }
+            }
+
+            if filteredItems.isEmpty {
+                Text("No \(filterKind?.label.lowercased() ?? "media") items yet")
+                    .font(.caption)
+                    .foregroundStyle(GalleryTheme.textTertiary)
+                    .frame(maxWidth: .infinity, minHeight: 60)
+            } else {
+                ForEach(filteredItems) { item in
+                    MediaItemRow(item: item)
+                }
+                .onDelete { offsets in
+                    let globalOffsets = IndexSet(offsets.compactMap { offset in
+                        let item = filteredItems[offset]
+                        return mediaLibrary.items.firstIndex(of: item)
+                    })
+                    mediaLibrary.remove(at: globalOffsets)
+                }
+            }
+        }
+        .padding(16)
+        .glassCard(cornerRadius: 18)
+    }
+}
+
+private struct MediaItemRow: View {
+    let item: MediaItem
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Group {
+                if item.kind == .image, let url = URL(string: item.fileURL) {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image.resizable().interpolation(.high).scaledToFill()
+                        default:
+                            Color(GalleryTheme.surface)
+                                .overlay {
+                                    Image(systemName: item.kind.icon)
+                                        .font(.caption)
+                                        .foregroundStyle(item.kind.tint)
+                                }
+                        }
+                    }
+                } else {
+                    Color(GalleryTheme.surface)
+                        .overlay {
+                            Image(systemName: item.kind.icon)
+                                .font(.system(size: 16))
+                                .foregroundStyle(item.kind.tint)
+                        }
+                }
+            }
+            .frame(width: 44, height: 44)
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(item.title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(GalleryTheme.textPrimary)
+                    .lineLimit(1)
+                HStack(spacing: 4) {
+                    Image(systemName: item.isExternal ? "link" : "internaldrive")
+                        .font(.system(size: 8))
+                        .foregroundStyle(GalleryTheme.textTertiary)
+                    Text(item.sourceDescription)
+                        .font(.system(size: 10))
+                        .foregroundStyle(GalleryTheme.textTertiary)
+                        .lineLimit(1)
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            Text(item.kind.label.uppercased())
+                .font(.system(size: 8, weight: .bold))
+                .tracking(1)
+                .foregroundStyle(item.kind.tint)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(item.kind.tint.opacity(0.12), in: Capsule())
+        }
+        .padding(10)
+        .glassCard(cornerRadius: 12)
     }
 }
 
@@ -1326,6 +2157,8 @@ private struct ScholarshipHomeView: View {
                             }
                             .buttonStyle(.plain)
                         }
+
+                        ArtJournalLinksSection()
                     }
                 }
                 .padding(20)
@@ -1369,6 +2202,7 @@ private struct ScholarshipDetailView: View {
                         .font(.callout)
                         .foregroundStyle(GalleryTheme.textSecondary)
                         .lineSpacing(5)
+
                     if !essay.references.isEmpty {
                         Rectangle()
                             .fill(GalleryTheme.glassStroke)
@@ -1378,11 +2212,26 @@ private struct ScholarshipDetailView: View {
                             .font(.headline)
                             .foregroundStyle(GalleryTheme.textPrimary)
                         ForEach(essay.references, id: \.self) { ref in
-                            Text("• \(ref)")
-                                .font(.caption)
-                                .foregroundStyle(GalleryTheme.textTertiary)
+                            if let link = ArtJournalDirectory.url(for: ref) {
+                                Link(destination: link) {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "arrow.up.right.square")
+                                            .font(.caption2)
+                                            .foregroundStyle(GalleryTheme.accent)
+                                        Text(ref)
+                                            .font(.caption.weight(.medium))
+                                            .foregroundStyle(GalleryTheme.accent)
+                                    }
+                                }
+                            } else {
+                                Text("• \(ref)")
+                                    .font(.caption)
+                                    .foregroundStyle(GalleryTheme.textTertiary)
+                            }
                         }
                     }
+
+                    ArtJournalLinksSection()
                 }
                 .padding(20)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -1415,6 +2264,187 @@ private struct ScholarshipDetailView: View {
     }
 }
 
+// MARK: - Art Journal Directory + Links
+
+private enum ArtJournalDirectory {
+    struct JournalEntry: Identifiable {
+        let id = UUID()
+        let name: String
+        let url: URL
+        let description: String
+        let icon: String
+    }
+
+    static let journals: [JournalEntry] = [
+        JournalEntry(name: "e-flux", url: URL(string: "https://www.e-flux.com/journal/")!,
+                     description: "Critical essays on art, culture, and theory",
+                     icon: "text.book.closed.fill"),
+        JournalEntry(name: "Artforum", url: URL(string: "https://www.artforum.com")!,
+                     description: "International contemporary art criticism",
+                     icon: "magazine.fill"),
+        JournalEntry(name: "Rhizome", url: URL(string: "https://rhizome.org")!,
+                     description: "Digital art, net art, and new media culture",
+                     icon: "network"),
+        JournalEntry(name: "Leonardo (MIT Press)", url: URL(string: "https://direct.mit.edu/leon")!,
+                     description: "Art, science, and technology journal since 1968",
+                     icon: "atom"),
+        JournalEntry(name: "Frieze", url: URL(string: "https://www.frieze.com")!,
+                     description: "Contemporary art and culture magazine",
+                     icon: "photo.artframe"),
+        JournalEntry(name: "The Art Newspaper", url: URL(string: "https://www.theartnewspaper.com")!,
+                     description: "Global art world news and analysis",
+                     icon: "newspaper.fill"),
+        JournalEntry(name: "Hyperallergic", url: URL(string: "https://hyperallergic.com")!,
+                     description: "Serious, accessible art journalism",
+                     icon: "eye.fill"),
+        JournalEntry(name: "CreativeApplications.Net", url: URL(string: "https://www.creativeapplications.net")!,
+                     description: "Generative art, creative coding, and interactive design",
+                     icon: "cpu"),
+    ]
+
+    static let referenceURLs: [String: URL] = [
+        "teamLab": URL(string: "https://www.teamlab.art")!,
+        "ARTECHOUSE": URL(string: "https://www.artechouse.com")!,
+        "Museum of Other Realities": URL(string: "https://www.museumor.com")!,
+        "Refik Anadol": URL(string: "https://refikanadol.com")!,
+        "Casey Reas": URL(string: "https://reas.com")!,
+        "Processing Foundation": URL(string: "https://processingfoundation.org")!,
+    ]
+
+    static func url(for reference: String) -> URL? {
+        referenceURLs[reference]
+    }
+}
+
+private struct ArtJournalLinksSection: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Rectangle()
+                .fill(GalleryTheme.glassStroke)
+                .frame(height: 0.5)
+                .padding(.vertical, 4)
+
+            Text("TOP ART JOURNALS")
+                .font(.system(size: 10, weight: .bold))
+                .tracking(2)
+                .foregroundStyle(GalleryTheme.gold)
+            Text("Further reading from leading publications")
+                .font(.caption2)
+                .foregroundStyle(GalleryTheme.textTertiary)
+
+            ForEach(ArtJournalDirectory.journals) { journal in
+                Link(destination: journal.url) {
+                    HStack(spacing: 12) {
+                        Image(systemName: journal.icon)
+                            .font(.system(size: 14))
+                            .foregroundStyle(GalleryTheme.accent)
+                            .frame(width: 32, height: 32)
+                            .background(GalleryTheme.accent.opacity(0.12),
+                                        in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(journal.name)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(GalleryTheme.textPrimary)
+                            Text(journal.description)
+                                .font(.system(size: 10))
+                                .foregroundStyle(GalleryTheme.textTertiary)
+                                .lineLimit(1)
+                        }
+                        Spacer(minLength: 0)
+                        Image(systemName: "arrow.up.right")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(GalleryTheme.accent)
+                    }
+                    .padding(12)
+                    .glassCard(cornerRadius: 14)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Creator Links
+
+private enum CreatorLinks {
+    static let website  = URL(string: "https://wcs-full.vercel.app")!
+    static let email    = URL(string: "mailto:christopher.appiahthompson@myworldclass.org")!
+    static let nightcafe = URL(string: "https://creator.nightcafe.studio/studio?open=user_profile&panelContext=%28userId%3ACKRIZ%29")!
+    static let gumroad  = URL(string: "https://chrspiah.gumroad.com/l/ewaukb?layout=profile")!
+
+    struct Entry: Identifiable {
+        let id = UUID()
+        let name: String
+        let subtitle: String
+        let url: URL
+        let icon: String
+        let tint: Color
+    }
+
+    static let all: [Entry] = [
+        Entry(name: "WCS Portfolio", subtitle: "wcs-full.vercel.app", url: website,
+              icon: "globe", tint: GalleryTheme.accent),
+        Entry(name: "Email", subtitle: "christopher.appiahthompson@myworldclass.org", url: email,
+              icon: "envelope.fill", tint: GalleryTheme.gold),
+        Entry(name: "NightCafe Studio", subtitle: "AI art creations by CKRIZ", url: nightcafe,
+              icon: "paintpalette.fill", tint: GalleryTheme.rose),
+        Entry(name: "Gumroad Store", subtitle: "Digital editions & prints", url: gumroad,
+              icon: "cart.fill", tint: .green),
+    ]
+}
+
+private struct CreatorLinksFooter: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Rectangle()
+                .fill(GalleryTheme.glassStroke)
+                .frame(height: 0.5)
+                .padding(.vertical, 4)
+
+            HStack(spacing: 8) {
+                Image(systemName: "person.crop.circle.fill")
+                    .font(.system(size: 14))
+                    .foregroundStyle(GalleryTheme.accent)
+                Text("CREATOR")
+                    .font(.system(size: 10, weight: .bold))
+                    .tracking(2)
+                    .foregroundStyle(GalleryTheme.gold)
+            }
+
+            Text("Christopher Appiah-Thompson")
+                .font(.system(size: 16, weight: .semibold, design: .serif))
+                .foregroundStyle(GalleryTheme.textPrimary)
+
+            ForEach(CreatorLinks.all) { entry in
+                Link(destination: entry.url) {
+                    HStack(spacing: 12) {
+                        Image(systemName: entry.icon)
+                            .font(.system(size: 14))
+                            .foregroundStyle(entry.tint)
+                            .frame(width: 32, height: 32)
+                            .background(entry.tint.opacity(0.12),
+                                        in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(entry.name)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(GalleryTheme.textPrimary)
+                            Text(entry.subtitle)
+                                .font(.system(size: 10))
+                                .foregroundStyle(GalleryTheme.textTertiary)
+                                .lineLimit(1)
+                        }
+                        Spacer(minLength: 0)
+                        Image(systemName: "arrow.up.right")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(entry.tint)
+                    }
+                    .padding(12)
+                    .glassCard(cornerRadius: 14)
+                }
+            }
+        }
+    }
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // MARK: - 6. COLLECTOR LIBRARY
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1422,6 +2452,7 @@ private struct ScholarshipDetailView: View {
 @MainActor
 private struct CollectorLibraryView: View {
     @EnvironmentObject private var collectionStore: CollectionStore
+    @EnvironmentObject private var mediaLibrary: MediaLibraryStore
     @StateObject private var vm = CollectorLibraryViewModel()
 
     var body: some View {
@@ -1445,7 +2476,7 @@ private struct CollectorLibraryView: View {
                             .frame(maxWidth: .infinity, minHeight: 200)
                     } else {
                         let owned = vm.artworks.filter { collectionStore.recordsByArtworkID[$0.id.uuidString] != nil }
-                        if owned.isEmpty {
+                        if owned.isEmpty && mediaLibrary.items(ofKind: .image).isEmpty {
                             VStack(spacing: 14) {
                                 Image(systemName: "shippingbox")
                                     .font(.system(size: 36))
@@ -1509,6 +2540,64 @@ private struct CollectorLibraryView: View {
                                         .glassCard(cornerRadius: 16)
                                     }
                                     .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                    }
+
+                    let generatedImages = mediaLibrary.items(ofKind: .image)
+                    if !generatedImages.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Rectangle()
+                                .fill(GalleryTheme.glassStroke)
+                                .frame(height: 0.5)
+                                .padding(.vertical, 4)
+
+                            HStack {
+                                Text("GENERATED & UPLOADED")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .tracking(2)
+                                    .foregroundStyle(GalleryTheme.gold)
+                                Spacer()
+                                Text("\(generatedImages.count) items")
+                                    .font(.caption2)
+                                    .foregroundStyle(GalleryTheme.textTertiary)
+                            }
+
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 12) {
+                                    ForEach(generatedImages) { item in
+                                        VStack(alignment: .leading, spacing: 6) {
+                                            if let url = URL(string: item.fileURL) {
+                                                AsyncImage(url: url) { phase in
+                                                    switch phase {
+                                                    case .success(let image):
+                                                        image.resizable().interpolation(.high).scaledToFill()
+                                                            .frame(width: 140, height: 120)
+                                                            .clipped()
+                                                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                                    default:
+                                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                                            .fill(GalleryTheme.surface)
+                                                            .frame(width: 140, height: 120)
+                                                            .overlay {
+                                                                Image(systemName: "photo")
+                                                                    .foregroundStyle(GalleryTheme.textTertiary)
+                                                            }
+                                                    }
+                                                }
+                                            }
+                                            Text(item.title)
+                                                .font(.system(size: 11, weight: .medium))
+                                                .foregroundStyle(GalleryTheme.textPrimary)
+                                                .lineLimit(1)
+                                            Text(item.sourceDescription)
+                                                .font(.system(size: 9))
+                                                .foregroundStyle(GalleryTheme.textTertiary)
+                                                .lineLimit(1)
+                                        }
+                                        .frame(width: 140)
+                                    }
                                 }
                             }
                         }
@@ -2158,6 +3247,118 @@ private final class FavoritesStore: ObservableObject {
 
 struct CollectionRecord: Codable, Hashable {
     let artworkID: String; let acquiredAt: Date; let certificateID: String
+}
+
+// MARK: - Media Library Store
+
+enum MediaItemKind: String, Codable, CaseIterable, Identifiable {
+    case image, audio, document, video
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .image: return "Image"
+        case .audio: return "Audio"
+        case .document: return "Document"
+        case .video: return "Video"
+        }
+    }
+    var icon: String {
+        switch self {
+        case .image: return "photo.fill"
+        case .audio: return "waveform"
+        case .document: return "doc.fill"
+        case .video: return "film"
+        }
+    }
+    var tint: Color {
+        switch self {
+        case .image: return GalleryTheme.accent
+        case .audio: return .purple
+        case .document: return GalleryTheme.gold
+        case .video: return GalleryTheme.rose
+        }
+    }
+    var allowedUTTypes: [UTType] {
+        switch self {
+        case .image: return [.image, .png, .jpeg, .gif, .heic, .webP]
+        case .audio: return [.audio, .mp3, .wav, .aiff]
+        case .document: return [.pdf, .plainText, .rtf, .json]
+        case .video: return [.movie, .mpeg4Movie, .quickTimeMovie, .avi]
+        }
+    }
+}
+
+struct MediaItem: Codable, Identifiable, Hashable {
+    let id: UUID
+    let kind: MediaItemKind
+    let title: String
+    let sourceDescription: String
+    let fileURL: String
+    let addedAt: Date
+    var isExternal: Bool
+}
+
+@MainActor
+private final class MediaLibraryStore: ObservableObject {
+    @AppStorage("mediaLibrary.items") private var rawItems = ""
+    @Published private(set) var items: [MediaItem] = []
+
+    init() { items = Self.decode(rawItems) }
+
+    func add(_ item: MediaItem) {
+        items.insert(item, at: 0)
+        sync()
+    }
+
+    func remove(at offsets: IndexSet) {
+        for index in offsets {
+            let item = items[index]
+            if !item.isExternal, let url = URL(string: item.fileURL) {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
+        items.remove(atOffsets: offsets)
+        sync()
+    }
+
+    func items(ofKind kind: MediaItemKind) -> [MediaItem] {
+        items.filter { $0.kind == kind }
+    }
+
+    private func sync() {
+        guard let data = try? JSONEncoder().encode(items),
+              let raw = String(data: data, encoding: .utf8) else { return }
+        rawItems = raw
+    }
+
+    private static func decode(_ raw: String) -> [MediaItem] {
+        guard let data = raw.data(using: .utf8),
+              let decoded = try? JSONDecoder().decode([MediaItem].self, from: data) else { return [] }
+        return decoded
+    }
+
+    static var documentsDirectory: URL {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("MediaLibrary", isDirectory: true)
+    }
+
+    static func ensureDirectoryExists() {
+        try? FileManager.default.createDirectory(at: documentsDirectory, withIntermediateDirectories: true)
+    }
+
+    func copyLocalFile(_ url: URL, kind: MediaItemKind, title: String) -> MediaItem? {
+        Self.ensureDirectoryExists()
+        let ext = url.pathExtension
+        let dest = Self.documentsDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension(ext)
+        guard url.startAccessingSecurityScopedResource() else { return nil }
+        defer { url.stopAccessingSecurityScopedResource() }
+        guard (try? FileManager.default.copyItem(at: url, to: dest)) != nil else { return nil }
+        return MediaItem(id: UUID(), kind: kind, title: title,
+                         sourceDescription: "Local import", fileURL: dest.absoluteString,
+                         addedAt: Date(), isExternal: false)
+    }
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

@@ -1,0 +1,5 @@
+// Debug.xcconfig — Development build
+GALLERY_API_BASE_URL = http:/$()/127.0.0.1:8080
+SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG
+CODE_SIGN_IDENTITY = Apple Development
+CODE_SIGN_ENTITLEMENTS = ScholarsGallery/ScholarsGallery.entitlements
