@@ -1,0 +1,8 @@
+// Release.xcconfig — App Store / Production build
+GALLERY_API_BASE_URL = https:/$()/wcs-full.vercel.app
+SWIFT_ACTIVE_COMPILATION_CONDITIONS =
+CODE_SIGN_IDENTITY = Apple Distribution
+CODE_SIGN_ENTITLEMENTS = ScholarsGallery/ScholarsGallery.Release.entitlements
+SWIFT_OPTIMIZATION_LEVEL = -O
+ENABLE_TESTABILITY = NO
+VALIDATE_PRODUCT = YES

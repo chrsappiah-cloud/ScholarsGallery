@@ -6,6 +6,12 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		5E0699592FAD1C62008E21DB /* GalleryCore in Frameworks */ = {isa = PBXBuildFile; productRef = A1000002AAAA000000000001 /* GalleryCore */; };
+		5E06995A2FAD1C62008E21DB /* GalleryUI in Frameworks */ = {isa = PBXBuildFile; productRef = A1000002AAAA000000000002 /* GalleryUI */; };
+		5E06995B2FAD1C62008E21DB /* GalleryApp in Frameworks */ = {isa = PBXBuildFile; productRef = A1000002AAAA000000000003 /* GalleryApp */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		5ECC2C092FA3133F001DB580 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -65,6 +71,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5E06995B2FAD1C62008E21DB /* GalleryApp in Frameworks */,
+				5E06995A2FAD1C62008E21DB /* GalleryUI in Frameworks */,
+				5E0699592FAD1C62008E21DB /* GalleryCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -206,9 +215,6 @@
 			buildConfigurationList = 5ECC2BF22FA3133D001DB580 /* Build configuration list for PBXProject "ScholarsGallery" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
-			packageReferences = (
-				A1000001AAAA000000000001 /* XCLocalSwiftPackageReference "." */,
-			);
 			knownRegions = (
 				en,
 				Base,
@@ -259,6 +265,9 @@
 			);
 			mainGroup = 5ECC2BEE2FA3133D001DB580;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				A1000001AAAA000000000001 /* XCLocalSwiftPackageReference "." */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 5ECC2BF82FA3133D001DB580 /* Products */;
 			projectDirPath = "";
@@ -387,7 +396,7 @@
 				INFOPLIST_FILE = ScholarsGallery/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = ScholarsGallery;
 				INFOPLIST_KEY_DEFAULT_ARTIST_ID = "00000000-0000-0000-0000-000000000001";
-				INFOPLIST_KEY_GALLERY_API_BASE_URL = "https://api.scholarsgallery.app";
+				INFOPLIST_KEY_GALLERY_API_BASE_URL = "https://wcs-full.vercel.app";
 				INFOPLIST_KEY_GENERATION_API_TOKEN = "";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";

@@ -11,5 +11,15 @@
 	<array>
 		<string>remote-notification</string>
 	</array>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>ScholarsGallery needs access to your photo library to import artwork images and media into your collection.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>ScholarsGallery needs permission to save generated artwork and exports to your photo library.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>ScholarsGallery uses the camera for capturing artwork and visual references.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>ScholarsGallery uses the microphone for audio recording features in the media library.</string>
 </dict>
 </plist>
