@@ -19,6 +19,13 @@ struct ContentView: View {
     ContentView()
 }
 
+// MARK: - Tab Router
+
+@MainActor
+private final class TabRouter: ObservableObject {
+    @Published var selectedTab: GalleryTab = .exhibitions
+}
+
 // MARK: - Root (backup lifecycle + meta refresh)
 
 private struct RootView: View {
@@ -27,14 +34,14 @@ private struct RootView: View {
     @StateObject private var collectionStore = CollectionStore()
     @StateObject private var favoritesStore = FavoritesStore()
     @StateObject private var galleryBackendMeta = GalleryBackendMetaModel()
+    @StateObject private var tabRouter = TabRouter()
     @State private var hasRestoredBackup = false
-    @State private var selectedTab: GalleryTab = .exhibitions
 
     var body: some View {
         ZStack(alignment: .bottom) {
             GalleryAppBackground().ignoresSafeArea()
 
-            TabView(selection: $selectedTab) {
+            TabView(selection: $tabRouter.selectedTab) {
                 ImmersiveHomeView()
                     .tag(GalleryTab.exhibitions)
                 GenerationStudioView()
@@ -48,13 +55,14 @@ private struct RootView: View {
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
 
-            FloatingNavBar(selectedTab: $selectedTab)
+            FloatingNavBar(selectedTab: $tabRouter.selectedTab)
                 .padding(.horizontal, 20)
                 .padding(.bottom, 8)
         }
         .environmentObject(collectionStore)
         .environmentObject(favoritesStore)
         .environmentObject(galleryBackendMeta)
+        .environmentObject(tabRouter)
         .task {
             await galleryBackendMeta.refresh()
             guard !hasRestoredBackup else { return }
@@ -498,63 +506,171 @@ private struct CinematicExhibitionCard: View {
 // MARK: - Journal Teaser
 
 private struct JournalTeaser: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            GallerySectionHeader(title: "JOURNAL", subtitle: "Critical writing on generative art")
+    @StateObject private var vm = JournalTeaserViewModel()
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Generative Art as Scholarly Surface")
-                    .font(.system(size: 16, weight: .semibold, design: .serif))
-                    .foregroundStyle(GalleryTheme.textPrimary)
-                Text("Exploring the intersection of algorithmic creation and curatorial practice in digital museum spaces.")
-                    .font(.caption)
-                    .foregroundStyle(GalleryTheme.textSecondary)
-                    .lineLimit(3)
-                HStack {
-                    Text("ScholarsGallery Editorial Board")
-                        .font(.caption2.weight(.medium))
-                        .foregroundStyle(GalleryTheme.accent)
-                    Spacer()
-                    Text("READ →")
-                        .font(.caption2.weight(.bold))
-                        .tracking(1)
-                        .foregroundStyle(GalleryTheme.gold)
+    var body: some View {
+        if let essay = vm.leadEssay {
+            VStack(alignment: .leading, spacing: 12) {
+                GallerySectionHeader(title: "JOURNAL", subtitle: "Critical writing on generative art")
+
+                NavigationLink {
+                    ScholarshipDetailView(summary: ScholarlyEssaySummary(
+                        id: essay.id, title: essay.title, author: essay.author))
+                } label: {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(essay.title)
+                            .font(.system(size: 16, weight: .semibold, design: .serif))
+                            .foregroundStyle(GalleryTheme.textPrimary)
+                            .multilineTextAlignment(.leading)
+                        Text(essay.excerpt)
+                            .font(.caption)
+                            .foregroundStyle(GalleryTheme.textSecondary)
+                            .lineLimit(3)
+                            .multilineTextAlignment(.leading)
+                        HStack {
+                            Text(essay.author)
+                                .font(.caption2.weight(.medium))
+                                .foregroundStyle(GalleryTheme.accent)
+                            Spacer()
+                            Text("READ →")
+                                .font(.caption2.weight(.bold))
+                                .tracking(1)
+                                .foregroundStyle(GalleryTheme.gold)
+                        }
+                    }
+                    .padding(16)
+                    .glassCard(cornerRadius: 16)
+                }
+                .buttonStyle(.plain)
+
+                if vm.essays.count > 1 {
+                    ForEach(vm.essays.dropFirst()) { extra in
+                        NavigationLink {
+                            ScholarshipDetailView(summary: ScholarlyEssaySummary(
+                                id: extra.id, title: extra.title, author: extra.author))
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "book.pages.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(GalleryTheme.accent)
+                                    .frame(width: 28, height: 28)
+                                    .background(GalleryTheme.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(extra.title)
+                                        .font(.system(size: 13, weight: .semibold, design: .serif))
+                                        .foregroundStyle(GalleryTheme.textPrimary)
+                                        .lineLimit(1)
+                                    Text(extra.author)
+                                        .font(.caption2)
+                                        .foregroundStyle(GalleryTheme.textTertiary)
+                                }
+                                Spacer(minLength: 0)
+                                Text("READ →")
+                                    .font(.system(size: 8, weight: .bold))
+                                    .tracking(1)
+                                    .foregroundStyle(GalleryTheme.gold)
+                            }
+                            .padding(12)
+                            .glassCard(cornerRadius: 14)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
             }
-            .padding(16)
-            .glassCard(cornerRadius: 16)
         }
+    }
+}
+
+@MainActor
+private final class JournalTeaserViewModel: ObservableObject {
+    struct TeaserEssay: Identifiable {
+        let id: String
+        let title: String
+        let author: String
+        let excerpt: String
+    }
+
+    @Published var essays: [TeaserEssay] = []
+    var leadEssay: TeaserEssay? { essays.first }
+
+    init() { Task { await load() } }
+
+    func load() async {
+        guard let summaries = try? await GalleryAPI.fetchEssaySummaries() else { return }
+        var result: [TeaserEssay] = []
+        for summary in summaries.prefix(3) {
+            if let full = try? await GalleryAPI.fetchEssay(id: summary.id) {
+                let excerpt = String(full.markdownBody.prefix(180))
+                    .replacingOccurrences(of: "\n", with: " ")
+                    .appending(full.markdownBody.count > 180 ? "…" : "")
+                result.append(TeaserEssay(id: summary.id, title: summary.title,
+                                          author: summary.author, excerpt: excerpt))
+            } else {
+                result.append(TeaserEssay(id: summary.id, title: summary.title,
+                                          author: summary.author, excerpt: ""))
+            }
+        }
+        essays = result
     }
 }
 
 // MARK: - Artist Spotlight
 
 private struct ArtistSpotlightSection: View {
+    @State private var selectedArtist: SpotlightArtist?
+
+    private let artists: [SpotlightArtist] = [
+        SpotlightArtist(
+            name: "Algorithmic Collective",
+            role: "Generative Media",
+            initial: "A",
+            bio: "A distributed collective of computational artists exploring emergent visual systems, neural aesthetics, and code-driven installations. Their work bridges machine learning pipelines with gallery-grade presentation.",
+            exhibitionSlugs: ["worlds-written-in-light"]
+        ),
+        SpotlightArtist(
+            name: "Curatorial Systems Lab",
+            role: "Research & Curation",
+            initial: "C",
+            bio: "An interdisciplinary research group at the intersection of museum informatics and generative AI. They develop frameworks for presenting algorithmic art within scholarly exhibition contexts.",
+            exhibitionSlugs: ["worlds-written-in-light"]
+        ),
+        SpotlightArtist(
+            name: "WCS Studio",
+            role: "Platform Design",
+            initial: "W",
+            bio: "The creative engine behind the World Computational Salon platform — designing the tools, interfaces, and spatial experiences that make computational art accessible to collectors and scholars alike.",
+            exhibitionSlugs: ["worlds-written-in-light"]
+        ),
+    ]
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             GallerySectionHeader(title: "ARTIST SPOTLIGHT", subtitle: "Featured creators")
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 14) {
-                    ArtistSpotlightCard(
-                        name: "Algorithmic Collective",
-                        role: "Generative Media",
-                        initial: "A"
-                    )
-                    ArtistSpotlightCard(
-                        name: "Curatorial Systems Lab",
-                        role: "Research & Curation",
-                        initial: "C"
-                    )
-                    ArtistSpotlightCard(
-                        name: "WCS Studio",
-                        role: "Platform Design",
-                        initial: "W"
-                    )
+                    ForEach(artists) { artist in
+                        Button { selectedArtist = artist } label: {
+                            ArtistSpotlightCard(name: artist.name, role: artist.role, initial: artist.initial)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
             }
         }
+        .sheet(item: $selectedArtist) { artist in
+            ArtistDetailSheet(artist: artist)
+        }
     }
+}
+
+private struct SpotlightArtist: Identifiable {
+    let id = UUID()
+    let name: String
+    let role: String
+    let initial: String
+    let bio: String
+    let exhibitionSlugs: [String]
 }
 
 private struct ArtistSpotlightCard: View {
@@ -587,30 +703,178 @@ private struct ArtistSpotlightCard: View {
     }
 }
 
+private struct ArtistDetailSheet: View {
+    let artist: SpotlightArtist
+    @Environment(\.dismiss) private var dismiss
+    @StateObject private var vm = ArtistDetailSheetViewModel()
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 20) {
+                    ZStack(alignment: .bottomLeading) {
+                        Rectangle()
+                            .fill(GalleryTheme.heroCardGradient)
+                            .frame(height: 200)
+                            .overlay { SparkleJewelOverlay().scaleEffect(1.3).opacity(0.6) }
+                            .overlay { GalleryTheme.fadeToBlack }
+
+                        HStack(spacing: 16) {
+                            ZStack {
+                                Circle()
+                                    .fill(GalleryTheme.accent.opacity(0.3))
+                                    .frame(width: 64, height: 64)
+                                Text(artist.initial)
+                                    .font(.system(size: 28, weight: .bold, design: .serif))
+                                    .foregroundStyle(.white)
+                            }
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(artist.name)
+                                    .font(.system(size: 20, weight: .bold, design: .serif))
+                                    .foregroundStyle(.white)
+                                Text(artist.role.uppercased())
+                                    .font(.system(size: 10, weight: .bold))
+                                    .tracking(2)
+                                    .foregroundStyle(GalleryTheme.accent)
+                            }
+                        }
+                        .padding(20)
+                    }
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("BIOGRAPHY")
+                            .font(.system(size: 10, weight: .bold))
+                            .tracking(2)
+                            .foregroundStyle(GalleryTheme.gold)
+                        Text(artist.bio)
+                            .font(.callout)
+                            .foregroundStyle(GalleryTheme.textSecondary)
+                            .lineSpacing(4)
+                    }
+                    .padding(.horizontal, 20)
+
+                    if !vm.artworks.isEmpty {
+                        VStack(alignment: .leading, spacing: 14) {
+                            GallerySectionHeader(title: "WORKS", subtitle: "\(vm.artworks.count) artworks in current exhibition")
+                                .padding(.horizontal, 20)
+
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 14) {
+                                    ForEach(vm.artworks) { artwork in
+                                        NavigationLink {
+                                            ImmersiveArtworkDetailView(artwork: artwork)
+                                        } label: {
+                                            FeaturedArtworkCell(artwork: artwork)
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                                .padding(.horizontal, 20)
+                            }
+                        }
+                    } else if vm.isLoading {
+                        ProgressView()
+                            .tint(GalleryTheme.accent)
+                            .frame(maxWidth: .infinity, minHeight: 100)
+                    }
+
+                    if !artist.exhibitionSlugs.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("EXHIBITIONS")
+                                .font(.system(size: 10, weight: .bold))
+                                .tracking(2)
+                                .foregroundStyle(GalleryTheme.gold)
+                            ForEach(artist.exhibitionSlugs, id: \.self) { slug in
+                                HStack(spacing: 8) {
+                                    Image(systemName: "rectangle.stack.fill")
+                                        .font(.caption2)
+                                        .foregroundStyle(GalleryTheme.accent)
+                                    Text(slug.replacingOccurrences(of: "-", with: " ").capitalized)
+                                        .font(.subheadline)
+                                        .foregroundStyle(GalleryTheme.textPrimary)
+                                }
+                                .padding(12)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .glassCard(cornerRadius: 12)
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                    }
+                }
+                .padding(.bottom, 40)
+            }
+            .background(GalleryAppBackground().ignoresSafeArea())
+            .navigationTitle(artist.name)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { dismiss() } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(GalleryTheme.textTertiary)
+                    }
+                }
+            }
+            .task {
+                await vm.load(exhibitionSlugs: artist.exhibitionSlugs)
+            }
+        }
+    }
+}
+
+@MainActor
+private final class ArtistDetailSheetViewModel: ObservableObject {
+    @Published var artworks: [ArtworkPackage] = []
+    @Published var isLoading = false
+
+    func load(exhibitionSlugs: [String]) async {
+        isLoading = true
+        defer { isLoading = false }
+        for slug in exhibitionSlugs {
+            if let works = try? await GalleryAPI.fetchArtworks(exhibitionSlug: slug) {
+                artworks.append(contentsOf: works)
+            }
+        }
+    }
+}
+
 // MARK: - Collector CTA
 
 private struct CollectorCTACard: View {
+    @EnvironmentObject private var tabRouter: TabRouter
+
     var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "diamond.fill")
-                .font(.system(size: 28))
-                .foregroundStyle(GalleryTheme.gold)
-            Text("Begin Your Collection")
-                .font(.system(size: 18, weight: .bold, design: .serif))
-                .foregroundStyle(GalleryTheme.textPrimary)
-            Text("Acquire limited-edition generative artworks with certificates of authenticity.")
-                .font(.caption)
-                .foregroundStyle(GalleryTheme.textSecondary)
-                .multilineTextAlignment(.center)
-            Text("EXPLORE EDITIONS →")
-                .font(.caption.weight(.bold))
-                .tracking(1.5)
+        Button {
+            withAnimation(.easeInOut(duration: 0.25)) {
+                tabRouter.selectedTab = .collection
+            }
+        } label: {
+            VStack(spacing: 12) {
+                Image(systemName: "diamond.fill")
+                    .font(.system(size: 28))
+                    .foregroundStyle(GalleryTheme.gold)
+                Text("Begin Your Collection")
+                    .font(.system(size: 18, weight: .bold, design: .serif))
+                    .foregroundStyle(GalleryTheme.textPrimary)
+                Text("Acquire limited-edition generative artworks with certificates of authenticity.")
+                    .font(.caption)
+                    .foregroundStyle(GalleryTheme.textSecondary)
+                    .multilineTextAlignment(.center)
+                HStack(spacing: 6) {
+                    Text("EXPLORE EDITIONS")
+                        .font(.caption.weight(.bold))
+                        .tracking(1.5)
+                    Image(systemName: "arrow.right")
+                        .font(.caption2.weight(.bold))
+                }
                 .foregroundStyle(GalleryTheme.accent)
                 .padding(.top, 4)
+            }
+            .padding(24)
+            .frame(maxWidth: .infinity)
+            .glassCard(cornerRadius: 20)
         }
-        .padding(24)
-        .frame(maxWidth: .infinity)
-        .glassCard(cornerRadius: 20)
+        .buttonStyle(.plain)
     }
 }
 
