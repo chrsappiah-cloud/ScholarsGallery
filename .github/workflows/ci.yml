@@ -11,6 +11,40 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # ── SPM library modules ───────────────────────────────────────
+  spm-modules:
+    name: Build SPM Modules
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select latest Xcode
+        run: |
+          XCODE_PATH=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          echo "Using: $XCODE_PATH"
+          sudo xcode-select -s "$XCODE_PATH"
+          swift --version
+
+      - name: Cache SwiftPM
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-swiftpm-modules-${{ hashFiles('Package.swift', 'Package.resolved') }}
+          restore-keys: ${{ runner.os }}-swiftpm-modules-
+
+      - name: Resolve dependencies
+        run: swift package resolve
+
+      - name: Build GalleryCore
+        run: swift build --target GalleryCore
+
+      - name: Build GalleryUI
+        run: swift build --target GalleryUI
+
+      - name: Build GalleryApp
+        run: swift build --target GalleryApp
+
   # ── Vapor server build + tests ──────────────────────────────────
   server:
     name: Server Build & Test
@@ -31,7 +65,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .build
-          key: ${{ runner.os }}-swiftpm-server-${{ hashFiles('Package.resolved') }}
+          key: ${{ runner.os }}-swiftpm-server-${{ hashFiles('Package.swift', 'Package.resolved') }}
           restore-keys: ${{ runner.os }}-swiftpm-server-
 
       - name: Resolve dependencies
@@ -49,6 +83,7 @@ jobs:
     name: iOS Build & Unit Tests
     runs-on: macos-latest
     timeout-minutes: 30
+    needs: [spm-modules]
     steps:
       - uses: actions/checkout@v4
 
@@ -146,7 +181,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .build
-          key: ${{ runner.os }}-swiftpm-server-${{ hashFiles('Package.resolved') }}
+          key: ${{ runner.os }}-swiftpm-server-${{ hashFiles('Package.swift', 'Package.resolved') }}
           restore-keys: ${{ runner.os }}-swiftpm-server-
 
       - name: Build and start server

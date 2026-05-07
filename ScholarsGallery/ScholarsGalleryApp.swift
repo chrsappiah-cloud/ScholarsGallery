@@ -7,6 +7,9 @@
 
 import SwiftUI
 import SwiftData
+import GalleryCore
+import GalleryUI
+import GalleryApp
 
 @main
 struct ScholarsGalleryApp: App {
@@ -24,7 +27,7 @@ struct ScholarsGalleryApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .tint(GalleryTheme.accent)
+                .tint(GalleryPalette.accent)
         }
         .modelContainer(modelContainer)
     }

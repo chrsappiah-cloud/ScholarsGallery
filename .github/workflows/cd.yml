@@ -14,9 +14,6 @@ on:
           - staging
           - production
 
-env:
-  DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
-
 jobs:
   # ── Gate: full CI must pass ─────────────────────────────────────
   ci-gate:
@@ -26,14 +23,16 @@ jobs:
   # ── Archive iOS app ─────────────────────────────────────────────
   archive:
     name: Archive iOS App
-    runs-on: macos-15
+    runs-on: macos-latest
     timeout-minutes: 30
     needs: [ci-gate]
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode.app
+      - name: Select latest Xcode
+        run: |
+          XCODE_PATH=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          sudo xcode-select -s "$XCODE_PATH"
 
       - name: Archive
         run: |
@@ -53,14 +52,19 @@ jobs:
           path: build/ScholarsGallery.xcarchive
           retention-days: 30
 
-  # ── Build server Docker image (optional) ────────────────────────
+  # ── Build server release binary ────────────────────────────────
   server-image:
-    name: Build Server Image
-    runs-on: macos-15
+    name: Build Server Binary
+    runs-on: macos-latest
     timeout-minutes: 20
     needs: [ci-gate]
     steps:
       - uses: actions/checkout@v4
+
+      - name: Select latest Xcode
+        run: |
+          XCODE_PATH=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          sudo xcode-select -s "$XCODE_PATH"
 
       - name: Build release server binary
         run: swift build -c release --product ScholarsGalleryServer

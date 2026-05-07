@@ -10,6 +10,9 @@ let package = Package(
     ],
     products: [
         .library(name: "CoreModels", targets: ["CoreModels"]),
+        .library(name: "GalleryCore", targets: ["GalleryCore"]),
+        .library(name: "GalleryUI", targets: ["GalleryUI"]),
+        .library(name: "GalleryApp", targets: ["GalleryApp"]),
         .library(name: "GalleryAPI", targets: ["GalleryAPI"]),
         .library(name: "ScholarKit", targets: ["ScholarKit"]),
         .library(name: "CommerceKit", targets: ["CommerceKit"]),
@@ -23,6 +26,18 @@ let package = Package(
     targets: [
         .target(
             name: "CoreModels"
+        ),
+        .target(
+            name: "GalleryCore",
+            dependencies: ["CoreModels"]
+        ),
+        .target(
+            name: "GalleryUI",
+            dependencies: ["GalleryCore"]
+        ),
+        .target(
+            name: "GalleryApp",
+            dependencies: ["GalleryCore", "GalleryUI"]
         ),
         .target(
             name: "GalleryAPI",
