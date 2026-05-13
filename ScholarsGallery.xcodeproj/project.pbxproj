@@ -6,6 +6,12 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		5E73971D2FB52BEF006AC9B9 /* GalleryCore in Frameworks */ = {isa = PBXBuildFile; productRef = A1000002AAAA000000000001 /* GalleryCore */; };
+		5E73971E2FB52BEF006AC9B9 /* GalleryUI in Frameworks */ = {isa = PBXBuildFile; productRef = A1000002AAAA000000000002 /* GalleryUI */; };
+		5E73971F2FB52BEF006AC9B9 /* GalleryApp in Frameworks */ = {isa = PBXBuildFile; productRef = A1000002AAAA000000000003 /* GalleryApp */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		5ECC2C092FA3133F001DB580 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -65,6 +71,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5E73971F2FB52BEF006AC9B9 /* GalleryApp in Frameworks */,
+				5E73971E2FB52BEF006AC9B9 /* GalleryUI in Frameworks */,
+				5E73971D2FB52BEF006AC9B9 /* GalleryCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -206,9 +215,6 @@
 			buildConfigurationList = 5ECC2BF22FA3133D001DB580 /* Build configuration list for PBXProject "ScholarsGallery" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
-			packageReferences = (
-				A1000001AAAA000000000001 /* XCLocalSwiftPackageReference "." */,
-			);
 			knownRegions = (
 				en,
 				Base,
@@ -259,6 +265,9 @@
 			);
 			mainGroup = 5ECC2BEE2FA3133D001DB580;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				A1000001AAAA000000000001 /* XCLocalSwiftPackageReference "." */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 5ECC2BF82FA3133D001DB580 /* Products */;
 			projectDirPath = "";
