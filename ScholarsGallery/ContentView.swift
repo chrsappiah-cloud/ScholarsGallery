@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 import Foundation
 import Combine
+import PhotosUI
 import GalleryCore
 import GalleryUI
 import GalleryApp
@@ -1135,568 +1136,6 @@ private struct ScholarlyEssayView: View {
     }
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// MARK: - 4. GENERATION STUDIO
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-@MainActor
-private struct GenerationStudioView: View {
-    @EnvironmentObject private var galleryBackendMeta: GalleryBackendMetaModel
-    @StateObject private var vm = GenerationStudioViewModel()
-    @State private var showDolaSheet = false
-
-    var body: some View {
-        NavigationStack {
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 20) {
-                    // Studio header
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack(spacing: 10) {
-                            Image(systemName: "sparkles.rectangle.stack.fill")
-                                .font(.title2)
-                                .foregroundStyle(GalleryTheme.accent)
-                            Text(String(localized: "studio.promptLabel"))
-                                .font(.system(size: 20, weight: .bold, design: .serif))
-                                .foregroundStyle(GalleryTheme.textPrimary)
-                        }
-                        Text("CREATE · REFINE · GENERATE")
-                            .font(.system(size: 9, weight: .semibold))
-                            .tracking(2)
-                            .foregroundStyle(GalleryTheme.textTertiary)
-                    }
-                    .padding(18)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .glassCard(cornerRadius: 20)
-                    .overlay(alignment: .topTrailing) {
-                        SparkleJewelOverlay().padding(12)
-                    }
-
-                    // Prompt editor
-                    TextEditor(text: $vm.prompt)
-                        .accessibilityIdentifier("studio.promptEditor")
-                        .frame(minHeight: 140)
-                        .padding(14)
-                        .scrollContentBackground(.hidden)
-                        .foregroundStyle(GalleryTheme.textPrimary)
-                        .font(.callout)
-                        .background(GalleryTheme.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .stroke(GalleryTheme.glassStroke, lineWidth: 1)
-                        )
-
-                    // Dola button
-                    if galleryBackendMeta.meta?.effectiveDolaAssistantEnabled ?? true {
-                        Button {
-                            showDolaSheet = true
-                        } label: {
-                            Label(String(localized: "studio.askDola"), systemImage: "sparkles")
-                                .frame(maxWidth: .infinity)
-                                .font(.subheadline.weight(.medium))
-                                .foregroundStyle(GalleryTheme.accent)
-                                .padding(.vertical, 12)
-                                .glassCard(cornerRadius: 12)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("studio.askDolaButton")
-                    }
-
-                    // Generate button
-                    Button {
-                        Task { await vm.generate() }
-                    } label: {
-                        if vm.isGenerating {
-                            ProgressView().tint(.white).frame(maxWidth: .infinity)
-                        } else {
-                            Label(String(localized: "studio.generateArtwork"), systemImage: "wand.and.stars")
-                                .labelStyle(.titleAndIcon)
-                                .frame(maxWidth: .infinity)
-                        }
-                    }
-                    .accessibilityIdentifier("studio.generateButton")
-                    .buttonStyle(GalleryProminentButtonStyle())
-                    .disabled(
-                        vm.isGenerating
-                        || vm.prompt.trimmingCharacters(in: .whitespacesAndNewlines).count < 12
-                        || !(galleryBackendMeta.meta?.effectiveGenerationEnabled ?? true)
-                    )
-
-                    if let error = vm.errorMessage {
-                        Text(error)
-                            .accessibilityIdentifier("studio.errorMessage")
-                            .font(.caption)
-                            .foregroundStyle(GalleryTheme.rose)
-                    }
-
-                    // Generated result
-                    if let generated = vm.generated {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text(String(localized: "studio.result"))
-                                .font(.system(size: 14, weight: .bold, design: .serif))
-                                .foregroundStyle(GalleryTheme.textPrimary)
-                            AsyncImage(url: URL(string: generated.imageURL)) { phase in
-                                switch phase {
-                                case .empty:
-                                    CinematicImagePlaceholder(height: 220, cornerRadius: 14)
-                                case .success(let image):
-                                    image
-                                        .resizable()
-                                        .interpolation(.high)
-                                        .scaledToFit()
-                                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                                        .shadow(color: GalleryTheme.accent.opacity(0.2), radius: 12, y: 6)
-                                case .failure:
-                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                        .fill(GalleryTheme.surface)
-                                        .frame(height: 220)
-                                        .overlay {
-                                            Image(systemName: "photo.badge.exclamationmark")
-                                                .font(.title2)
-                                                .foregroundStyle(GalleryTheme.textTertiary)
-                                        }
-                                @unknown default:
-                                    EmptyView()
-                                }
-                            }
-                            HStack {
-                                Text(String(format: String(localized: "studio.providerFormat"), generated.provider))
-                                    .accessibilityIdentifier("studio.resultProvider")
-                                Spacer()
-                                Text(String(format: String(localized: "studio.statusFormat"), generated.status))
-                            }
-                            .font(.caption2)
-                            .foregroundStyle(GalleryTheme.textTertiary)
-                        }
-                        .padding(16)
-                        .glassCard(cornerRadius: 18)
-                    }
-
-                    // Recent generations
-                    if !vm.recentGenerations.isEmpty {
-                        VStack(alignment: .leading, spacing: 12) {
-                            GallerySectionHeader(title: String(localized: "studio.recentGenerations"))
-
-                            ForEach(vm.recentGenerations) { item in
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text(item.prompt)
-                                        .font(.subheadline)
-                                        .foregroundStyle(GalleryTheme.textPrimary)
-                                        .lineLimit(2)
-                                    Text("\(item.provider.uppercased()) · \(item.createdAt.formatted(date: .abbreviated, time: .shortened))")
-                                        .font(.caption2)
-                                        .foregroundStyle(GalleryTheme.textTertiary)
-                                }
-                                .padding(14)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .overlay(alignment: .leading) {
-                                    Rectangle()
-                                        .fill(GalleryTheme.accent.opacity(0.5))
-                                        .frame(width: 3)
-                                }
-                                .glassCard(cornerRadius: 14)
-                            }
-                        }
-                    }
-                }
-                .padding(20)
-                .padding(.bottom, 100)
-            }
-            .background(GalleryAppBackground().ignoresSafeArea())
-            .navigationTitle(String(localized: "studio.navTitle"))
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            .sheet(isPresented: $showDolaSheet) {
-                DolaAssistantSheet(initialPrompt: vm.prompt) { picked in
-                    vm.prompt = picked
-                }
-                .environmentObject(galleryBackendMeta)
-            }
-            .task { await vm.loadRecent() }
-        }
-    }
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// MARK: - 5. SCHOLARSHIP (Journal)
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-@MainActor
-private struct ScholarshipHomeView: View {
-    @StateObject private var vm = ScholarshipViewModel()
-
-    var body: some View {
-        NavigationStack {
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 16) {
-                    // Header
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("SCHOLARSHIP")
-                            .font(.system(size: 9, weight: .bold))
-                            .tracking(3)
-                            .foregroundStyle(GalleryTheme.accent)
-                        Text("Critical Writing")
-                            .font(.system(size: 24, weight: .bold, design: .serif))
-                            .foregroundStyle(GalleryTheme.textPrimary)
-                        Text("Essays, research, and curatorial perspectives on generative art.")
-                            .font(.caption)
-                            .foregroundStyle(GalleryTheme.textTertiary)
-                    }
-                    .padding(.bottom, 8)
-
-                    if vm.isLoading {
-                        ProgressView(String(localized: "scholarship.loading"))
-                            .tint(GalleryTheme.accent)
-                            .frame(maxWidth: .infinity, minHeight: 200)
-                    } else if let error = vm.errorMessage, vm.essays.isEmpty {
-                        VStack(spacing: 10) {
-                            Image(systemName: "exclamationmark.circle")
-                                .font(.title)
-                                .foregroundStyle(GalleryTheme.textTertiary)
-                            Text(error)
-                                .font(.caption)
-                                .foregroundStyle(GalleryTheme.textTertiary)
-                        }
-                        .frame(maxWidth: .infinity, minHeight: 200)
-                    } else if vm.essays.isEmpty {
-                        VStack(spacing: 10) {
-                            Image(systemName: "book.closed")
-                                .font(.title)
-                                .foregroundStyle(GalleryTheme.textTertiary)
-                            Text(String(localized: "scholarship.noEssays"))
-                                .font(.subheadline)
-                                .foregroundStyle(GalleryTheme.textSecondary)
-                        }
-                        .frame(maxWidth: .infinity, minHeight: 200)
-                    } else {
-                        ForEach(vm.essays) { essay in
-                            NavigationLink {
-                                ScholarshipDetailView(summary: essay)
-                            } label: {
-                                HStack(alignment: .top, spacing: 14) {
-                                    Image(systemName: "book.pages.fill")
-                                        .font(.title3)
-                                        .foregroundStyle(GalleryTheme.accent)
-                                        .frame(width: 40, height: 40)
-                                        .background(GalleryTheme.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                                    VStack(alignment: .leading, spacing: 6) {
-                                        Text(essay.title)
-                                            .font(.system(size: 15, weight: .semibold, design: .serif))
-                                            .foregroundStyle(GalleryTheme.textPrimary)
-                                            .multilineTextAlignment(.leading)
-                                        Text(essay.author)
-                                            .font(.caption)
-                                            .foregroundStyle(GalleryTheme.textTertiary)
-                                    }
-                                    Spacer(minLength: 0)
-                                    Text("READ →")
-                                        .font(.system(size: 9, weight: .bold))
-                                        .tracking(1)
-                                        .foregroundStyle(GalleryTheme.gold)
-                                }
-                                .padding(16)
-                                .glassCard(cornerRadius: 18)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-                .padding(20)
-                .padding(.bottom, 100)
-            }
-            .background(GalleryAppBackground().ignoresSafeArea())
-            .navigationTitle(String(localized: "scholarship.navTitle"))
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        Task { await vm.load() }
-                    } label: {
-                        Label(String(localized: "scholarship.refresh"), systemImage: "arrow.clockwise")
-                    }
-                    .tint(GalleryTheme.accent)
-                    .accessibilityIdentifier("scholarship.refreshButton")
-                }
-            }
-            .task { await vm.load() }
-        }
-    }
-}
-
-private struct ScholarshipDetailView: View {
-    let summary: ScholarlyEssaySummary
-    @State private var essay: ScholarlyEssay?
-    @State private var isLoading = false
-
-    var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            if let essay {
-                VStack(alignment: .leading, spacing: 14) {
-                    Text(essay.title)
-                        .font(.system(size: 22, weight: .bold, design: .serif))
-                        .foregroundStyle(GalleryTheme.textPrimary)
-                    Text(String(format: String(localized: "essay.byAuthor"), essay.author))
-                        .font(.caption)
-                        .foregroundStyle(GalleryTheme.accent)
-                    Text(.init(essay.markdownBody))
-                        .font(.callout)
-                        .foregroundStyle(GalleryTheme.textSecondary)
-                        .lineSpacing(5)
-                    if !essay.references.isEmpty {
-                        Rectangle()
-                            .fill(GalleryTheme.glassStroke)
-                            .frame(height: 0.5)
-                            .padding(.vertical, 8)
-                        Text(String(localized: "essay.references"))
-                            .font(.headline)
-                            .foregroundStyle(GalleryTheme.textPrimary)
-                        ForEach(essay.references, id: \.self) { ref in
-                            Text("• \(ref)")
-                                .font(.caption)
-                                .foregroundStyle(GalleryTheme.textTertiary)
-                        }
-                    }
-                }
-                .padding(20)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            } else if isLoading {
-                ProgressView(String(localized: "scholarshipDetail.loadingEssay"))
-                    .tint(GalleryTheme.accent)
-                    .frame(maxWidth: .infinity, minHeight: 240)
-            } else {
-                VStack(spacing: 10) {
-                    Image(systemName: "book.closed")
-                        .font(.title)
-                        .foregroundStyle(GalleryTheme.textTertiary)
-                    Text(String(localized: "scholarshipDetail.essayUnavailable"))
-                        .font(.subheadline)
-                        .foregroundStyle(GalleryTheme.textSecondary)
-                }
-                .frame(maxWidth: .infinity, minHeight: 240)
-            }
-        }
-        .padding(.bottom, 100)
-        .background(GalleryAppBackground().ignoresSafeArea())
-        .navigationTitle(summary.title)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
-        .task {
-            isLoading = true
-            essay = try? await GalleryAPI.fetchEssay(id: summary.id)
-            isLoading = false
-        }
-    }
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// MARK: - 6. COLLECTOR LIBRARY
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-@MainActor
-private struct CollectorLibraryView: View {
-    @EnvironmentObject private var collectionStore: CollectionStore
-    @StateObject private var vm = CollectorLibraryViewModel()
-
-    var body: some View {
-        NavigationStack {
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 16) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("YOUR COLLECTION")
-                            .font(.system(size: 9, weight: .bold))
-                            .tracking(3)
-                            .foregroundStyle(GalleryTheme.gold)
-                        Text("Acquired Works")
-                            .font(.system(size: 24, weight: .bold, design: .serif))
-                            .foregroundStyle(GalleryTheme.textPrimary)
-                    }
-                    .padding(.bottom, 8)
-
-                    if vm.isLoading {
-                        ProgressView(String(localized: "collection.loading"))
-                            .tint(GalleryTheme.accent)
-                            .frame(maxWidth: .infinity, minHeight: 200)
-                    } else {
-                        let owned = vm.artworks.filter { collectionStore.recordsByArtworkID[$0.id.uuidString] != nil }
-                        if owned.isEmpty {
-                            VStack(spacing: 14) {
-                                Image(systemName: "shippingbox")
-                                    .font(.system(size: 36))
-                                    .foregroundStyle(GalleryTheme.textTertiary)
-                                Text(String(localized: "collection.emptyTitle"))
-                                    .font(.system(size: 16, weight: .semibold, design: .serif))
-                                    .foregroundStyle(GalleryTheme.textPrimary)
-                                Text(String(localized: "collection.emptyDescription"))
-                                    .font(.caption)
-                                    .foregroundStyle(GalleryTheme.textTertiary)
-                                    .multilineTextAlignment(.center)
-                            }
-                            .frame(maxWidth: .infinity, minHeight: 250)
-                        } else {
-                            ForEach(owned) { artwork in
-                                if let record = collectionStore.recordsByArtworkID[artwork.id.uuidString] {
-                                    NavigationLink {
-                                        CollectionRecordDetailView(artwork: artwork, record: record)
-                                    } label: {
-                                        HStack(spacing: 14) {
-                                            AsyncImage(url: artwork.displayManifest.thumbnailURL) { phase in
-                                                switch phase {
-                                                case .success(let image):
-                                                    image
-                                                        .resizable()
-                                                        .interpolation(.high)
-                                                        .scaledToFill()
-                                                        .frame(width: 60, height: 60)
-                                                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                                                default:
-                                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                                        .fill(GalleryTheme.surface)
-                                                        .frame(width: 60, height: 60)
-                                                }
-                                            }
-
-                                            VStack(alignment: .leading, spacing: 4) {
-                                                Text(artwork.title)
-                                                    .font(.system(size: 14, weight: .semibold))
-                                                    .foregroundStyle(GalleryTheme.textPrimary)
-                                                Text(artwork.tags.joined(separator: " · "))
-                                                    .font(.caption2)
-                                                    .foregroundStyle(GalleryTheme.textTertiary)
-                                                HStack(spacing: 4) {
-                                                    Image(systemName: "seal.fill")
-                                                        .font(.system(size: 8))
-                                                        .foregroundStyle(GalleryTheme.gold)
-                                                    Text(record.certificateID)
-                                                        .font(.system(size: 9, weight: .medium, design: .monospaced))
-                                                        .foregroundStyle(GalleryTheme.textTertiary)
-                                                }
-                                            }
-
-                                            Spacer(minLength: 0)
-
-                                            Image(systemName: "chevron.right")
-                                                .font(.caption2.weight(.semibold))
-                                                .foregroundStyle(GalleryTheme.textTertiary)
-                                        }
-                                        .padding(14)
-                                        .glassCard(cornerRadius: 16)
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                        }
-                    }
-                }
-                .padding(20)
-                .padding(.bottom, 100)
-            }
-            .background(GalleryAppBackground().ignoresSafeArea())
-            .navigationTitle(String(localized: "collection.navTitle"))
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        Task { await vm.load() }
-                    } label: {
-                        Label(String(localized: "collection.refresh"), systemImage: "arrow.clockwise")
-                    }
-                    .tint(GalleryTheme.accent)
-                    .accessibilityIdentifier("collection.refreshButton")
-                }
-            }
-            .task { await vm.load() }
-        }
-    }
-}
-
-private struct CollectionRecordDetailView: View {
-    let artwork: ArtworkPackage
-    let record: CollectionRecord
-
-    var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 20) {
-                AsyncImage(url: artwork.displayManifest.heroAssetURL) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .interpolation(.high)
-                            .scaledToFit()
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    default:
-                        CinematicImagePlaceholder(height: 200, cornerRadius: 16)
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: 16) {
-                    Text(artwork.title)
-                        .font(.system(size: 22, weight: .bold, design: .serif))
-                        .foregroundStyle(GalleryTheme.textPrimary)
-
-                    InfoRow(label: String(localized: "acquisition.purchasedOn"),
-                            value: record.acquiredAt.formatted(date: .abbreviated, time: .shortened))
-                    InfoRow(label: String(localized: "acquisition.certificateId"),
-                            value: record.certificateID, monospaced: true)
-                    InfoRow(label: String(localized: "acquisition.editionRights"),
-                            value: String(localized: "acquisition.editionRightsValue"))
-
-                    Rectangle()
-                        .fill(GalleryTheme.glassStroke)
-                        .frame(height: 0.5)
-
-                    Text("DELIVERY INCLUDES")
-                        .font(.system(size: 10, weight: .bold))
-                        .tracking(2)
-                        .foregroundStyle(GalleryTheme.gold)
-
-                    DeliveryRow(icon: "iphone", label: String(localized: "delivery.iphoneAsset"))
-                    DeliveryRow(icon: "photo", label: String(localized: "delivery.hiResExport"))
-                    DeliveryRow(icon: "book.pages", label: String(localized: "delivery.scholarshipPackage"))
-                }
-            }
-            .padding(20)
-            .padding(.bottom, 100)
-        }
-        .background(GalleryAppBackground().ignoresSafeArea())
-        .navigationTitle(String(localized: "acquisition.navTitle"))
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbarColorScheme(.dark, for: .navigationBar)
-    }
-}
-
-private struct InfoRow: View {
-    let label: String
-    let value: String
-    var monospaced: Bool = false
-
-    var body: some View {
-        HStack {
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(GalleryTheme.textTertiary)
-            Spacer()
-            Text(value)
-                .font(monospaced ? .caption.monospaced() : .caption)
-                .foregroundStyle(GalleryTheme.textPrimary)
-        }
-    }
-}
-
-private struct DeliveryRow: View {
-    let icon: String
-    let label: String
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: icon)
-                .font(.system(size: 14))
-                .foregroundStyle(GalleryTheme.accent)
-                .frame(width: 24)
-            Text(label)
-                .font(.subheadline)
-                .foregroundStyle(GalleryTheme.textSecondary)
-        }
-    }
-}
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // MARK: - 7. FEATURED ARTWORK HORIZONTAL GRID
@@ -2091,46 +1530,15 @@ private struct ArtworkDetailView: View {
     }
 }
 
-private struct ScholarlyEssayView: View {
-    let essay: ScholarlyEssay?
-    let isLoading: Bool
-
-    var body: some View {
-        ScrollView {
-            if let essay {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text(essay.title).font(.title3.bold())
-                    Text(String(format: String(localized: "essay.byAuthor"), essay.author)).font(.subheadline).foregroundStyle(.secondary)
-                    Text(.init(essay.markdownBody))
-                    if !essay.references.isEmpty {
-                        Divider()
-                        Text(String(localized: "essay.references")).font(.headline)
-                        ForEach(essay.references, id: \.self) { ref in
-                            Text("• \(ref)")
-                        }
-                    }
-                }
-                .padding()
-            } else {
-                if isLoading {
-                    ProgressView(String(localized: "essay.loading"))
-                        .frame(maxWidth: .infinity, minHeight: 240)
-                } else {
-                    ContentUnavailableView(String(localized: "essay.noEssayAvailable"), systemImage: "text.book.closed")
-                }
-            }
-        }
-    }
-}
-
 @MainActor
 private struct ScholarshipHomeView: View {
     @StateObject private var vm = ScholarshipViewModel()
-    @State private var selectedSection: ScholarshipSection = .artworks
+    @State private var selectedSection: ScholarshipSection = .essays
 
     private enum ScholarshipSection: String, CaseIterable {
         case artworks = "AI Descriptions"
         case essays = "Essays"
+        case coach = "Study Coach"
     }
 
     var body: some View {
@@ -2152,6 +1560,8 @@ private struct ScholarshipHomeView: View {
                         ArtworkScholarlyListView()
                     case .essays:
                         essayListContent
+                    case .coach:
+                        OnDeviceScholarStudyCoachView()
                     }
                 }
             }
@@ -2227,6 +1637,71 @@ private struct ScholarshipHomeView: View {
                 }
                 .padding()
             }
+        }
+    }
+}
+
+private struct ScholarshipDetailView: View {
+    let summary: ScholarlyEssaySummary
+    @State private var essay: ScholarlyEssay?
+    @State private var isLoading = false
+
+    var body: some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            if let essay {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text(essay.title)
+                        .font(.system(size: 22, weight: .bold, design: .serif))
+                        .foregroundStyle(GalleryTheme.textPrimary)
+                    Text(String(format: String(localized: "essay.byAuthor"), essay.author))
+                        .font(.caption)
+                        .foregroundStyle(GalleryTheme.accent)
+                    Text(.init(essay.markdownBody))
+                        .font(.callout)
+                        .foregroundStyle(GalleryTheme.textSecondary)
+                        .lineSpacing(5)
+                    if !essay.references.isEmpty {
+                        Rectangle()
+                            .fill(GalleryTheme.glassStroke)
+                            .frame(height: 0.5)
+                            .padding(.vertical, 8)
+                        Text(String(localized: "essay.references"))
+                            .font(.headline)
+                            .foregroundStyle(GalleryTheme.textPrimary)
+                        ForEach(essay.references, id: \.self) { ref in
+                            Text("• \(ref)")
+                                .font(.caption)
+                                .foregroundStyle(GalleryTheme.textTertiary)
+                        }
+                    }
+                }
+                .padding(20)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } else if isLoading {
+                ProgressView(String(localized: "scholarshipDetail.loadingEssay"))
+                    .tint(GalleryTheme.accent)
+                    .frame(maxWidth: .infinity, minHeight: 240)
+            } else {
+                VStack(spacing: 10) {
+                    Image(systemName: "book.closed")
+                        .font(.title)
+                        .foregroundStyle(GalleryTheme.textTertiary)
+                    Text(String(localized: "scholarshipDetail.essayUnavailable"))
+                        .font(.subheadline)
+                        .foregroundStyle(GalleryTheme.textSecondary)
+                }
+                .frame(maxWidth: .infinity, minHeight: 240)
+            }
+        }
+        .padding(.bottom, 100)
+        .background(GalleryAppBackground().ignoresSafeArea())
+        .navigationTitle(summary.title)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarColorScheme(.dark, for: .navigationBar)
+        .task {
+            isLoading = true
+            essay = try? await GalleryAPI.fetchEssay(id: summary.id)
+            isLoading = false
         }
     }
 }
@@ -2865,7 +2340,7 @@ private struct GenerationStudioView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
+            ScrollView(.vertical, showsIndicators: true) {
                 VStack(alignment: .leading, spacing: 20) {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(spacing: 12) {
@@ -3280,48 +2755,6 @@ private final class CollectorLibraryViewModel: ObservableObject {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// MARK: - DATA MODELS
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-private struct Exhibition: Codable, Hashable, Identifiable {
-    let id: UUID; let slug: String; let title: String; let subtitle: String
-    let openingDate: Date; let manifestURL: URL?
-}
-
-private struct RoomManifest: Codable, Hashable {
-    struct Lighting: Codable, Hashable { let preset: String; let intensity: Double }
-    struct Room: Codable, Hashable {
-        let id: String; let kind: String; let title: String; let artworkIDs: [String]
-        let ambientAudio: String?; let lighting: Lighting?; let wallEssayID: String?; let transitions: [String]
-    }
-    let exhibitionId: String; let title: String; let rooms: [Room]
-}
-
-private struct ScholarlyEssay: Codable, Hashable {
-    let id: String; let title: String; let author: String; let markdownBody: String; let references: [String]
-}
-
-private struct ScholarlyEssaySummary: Codable, Hashable, Identifiable {
-    let id: String; let title: String; let author: String
-}
-
-private struct CheckoutResponse: Codable, Hashable { let checkoutURL: String }
-private struct GenerateArtworkRequest: Codable { let prompt: String; let artistID: UUID }
-
-private struct GeneratedArtwork: Codable, Hashable, Identifiable {
-    let id: UUID; let status: String; let imageURL: String; let prompt: String
-    let provider: String; let createdAt: Date
-}
-
-private struct ArtworkPackage: Identifiable, Codable, Hashable {
-    struct DisplayManifest: Codable, Hashable {
-        let heroAssetURL: URL; let thumbnailURL: URL; let wallLabelMarkdown: String
-    }
-    struct Edition: Codable, Hashable { let number: Int; let total: Int }
-    let id: UUID; let title: String; let tags: [String]; let displayManifest: DisplayManifest; let edition: Edition?
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // MARK: - STORES
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -3404,167 +2837,6 @@ struct CollectionRecord: Codable, Hashable {
     let artworkID: String; let acquiredAt: Date; let certificateID: String
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// MARK: - API + NETWORK
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-private enum GalleryCheckoutResult: Equatable {
-    case success(message: String); case policyBlocked; case failed
-}
-
-private enum GalleryAPI {
-    private static let baseURL = GalleryAPIConfiguration.baseURL
-    private static let cache = GalleryCache()
-    private static let generationToken: String? = {
-        guard let raw = Bundle.main.object(forInfoDictionaryKey: "GENERATION_API_TOKEN") as? String, !raw.isEmpty else { return nil }
-        return raw
-    }()
-
-    static func fetchExhibitions() async throws -> [Exhibition] {
-        do {
-            let (data, response) = try await URLSession.shared.data(from: baseURL.appendingPathComponent("api/exhibitions"))
-            try validate(response)
-            let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
-            let decoded = try decoder.decode([Exhibition].self, from: data)
-            cache.save(decoded, for: .exhibitions); return decoded
-        } catch {
-            if let cached: [Exhibition] = cache.load(for: .exhibitions) { return cached }
-            throw map(error)
-        }
-    }
-
-    static func fetchManifest(from url: URL) async throws -> RoomManifest {
-        do {
-            let (data, response) = try await URLSession.shared.data(from: url)
-            try validate(response)
-            let decoded = try JSONDecoder().decode(RoomManifest.self, from: data)
-            cache.save(decoded, for: .manifest(url.absoluteString)); return decoded
-        } catch {
-            if let cached: RoomManifest = cache.load(for: .manifest(url.absoluteString)) { return cached }
-            throw map(error)
-        }
-    }
-
-    static func fetchEssay(id: String) async throws -> ScholarlyEssay {
-        do {
-            let url = baseURL.appendingPathComponent("api/essays/\(id)")
-            let (data, response) = try await URLSession.shared.data(from: url)
-            try validate(response)
-            let decoded = try JSONDecoder().decode(ScholarlyEssay.self, from: data)
-            cache.save(decoded, for: .essay(id)); return decoded
-        } catch {
-            if let cached: ScholarlyEssay = cache.load(for: .essay(id)) { return cached }
-            throw map(error)
-        }
-    }
-
-    static func fetchArtworks(exhibitionSlug: String) async throws -> [ArtworkPackage] {
-        do {
-            let url = baseURL.appendingPathComponent("api/exhibitions/\(exhibitionSlug)/artworks")
-            let (data, response) = try await URLSession.shared.data(from: url)
-            try validate(response)
-            let decoded = try JSONDecoder().decode([ArtworkPackage].self, from: data)
-            cache.save(decoded, for: .artworks(exhibitionSlug)); return decoded
-        } catch {
-            if let cached: [ArtworkPackage] = cache.load(for: .artworks(exhibitionSlug)) { return cached }
-            throw map(error)
-        }
-    }
-
-    static func fetchAllArtworks() async throws -> [ArtworkPackage] {
-        let exhibitions = try await fetchExhibitions()
-        guard let first = exhibitions.first else { return [] }
-        return try await fetchArtworks(exhibitionSlug: first.slug)
-    }
-
-    static func performCheckout() async -> GalleryCheckoutResult {
-        guard let id = UUID(uuidString: "00000000-0000-0000-0000-000000000001") else { return .failed }
-        var request = URLRequest(url: baseURL.appendingPathComponent("api/checkout/\(id.uuidString)"))
-        request.httpMethod = "POST"
-        do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let http = response as? HTTPURLResponse else { return .failed }
-            if http.statusCode == 403 { return .policyBlocked }
-            guard (200...299).contains(http.statusCode) else { return .failed }
-            let payload = try JSONDecoder().decode(CheckoutResponse.self, from: data)
-            return .success(message: String(format: String(localized: "checkout.urlReady"), payload.checkoutURL))
-        } catch { return .failed }
-    }
-
-    static func generateArtwork(prompt: String, artistID: UUID) async throws -> GeneratedArtwork {
-        var request = URLRequest(url: baseURL.appendingPathComponent("api/artworks/generate"))
-        request.httpMethod = "POST"
-        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
-        if let generationToken { request.addValue(generationToken, forHTTPHeaderField: "X-Generation-Token") }
-        request.httpBody = try JSONEncoder().encode(GenerateArtworkRequest(prompt: prompt, artistID: artistID))
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse else { throw GalleryAPIError.unexpected }
-        if http.statusCode == 403 { throw GalleryAPIError.generationDisabledByPolicy }
-        try validate(response)
-        let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
-        return try decoder.decode(GeneratedArtwork.self, from: data)
-    }
-
-    static func fetchGeneratedArtworks(limit: Int = 20) async throws -> [GeneratedArtwork] {
-        var components = URLComponents(url: baseURL.appendingPathComponent("api/artworks/generated"), resolvingAgainstBaseURL: false)
-        components?.queryItems = [URLQueryItem(name: "limit", value: "\(max(1, min(100, limit)))")]
-        guard let url = components?.url else { throw GalleryAPIError.invalidGeneratedEndpoint }
-        var request = URLRequest(url: url)
-        if let generationToken { request.addValue(generationToken, forHTTPHeaderField: "X-Generation-Token") }
-        let (data, response) = try await URLSession.shared.data(for: request)
-        try validate(response)
-        let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
-        return try decoder.decode([GeneratedArtwork].self, from: data)
-    }
-
-    static func fetchEssaySummaries() async throws -> [ScholarlyEssaySummary] {
-        do {
-            let (data, response) = try await URLSession.shared.data(from: baseURL.appendingPathComponent("api/essays"))
-            try validate(response)
-            let decoded = try JSONDecoder().decode([ScholarlyEssaySummary].self, from: data)
-            cache.save(decoded, for: .essaySummaries); return decoded
-        } catch {
-            if let cached: [ScholarlyEssaySummary] = cache.load(for: .essaySummaries) { return cached }
-            throw map(error)
-        }
-    }
-
-    static func validate(_ response: URLResponse) throws {
-        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode)
-        else { throw GalleryAPIError.serverInvalid }
-    }
-
-    static func map(_ error: Error) -> Error {
-        if let error = error as? GalleryAPIError { return error }
-        if error is DecodingError { return GalleryAPIError.decodingFailed }
-        if let urlError = error as? URLError {
-            switch urlError.code {
-            case .notConnectedToInternet, .networkConnectionLost, .timedOut: return GalleryAPIError.networkCached
-            default: return GalleryAPIError.networkConnect
-            }
-        }
-        return GalleryAPIError.unexpected
-    }
-}
-
-private protocol GalleryAPIClientProtocol {
-    func fetchExhibitions() async throws -> [Exhibition]
-    func fetchManifest(from url: URL) async throws -> RoomManifest
-    func fetchEssay(id: String) async throws -> ScholarlyEssay
-    func fetchArtworks(exhibitionSlug: String) async throws -> [ArtworkPackage]
-    func fetchAllArtworks() async throws -> [ArtworkPackage]
-    func fetchEssaySummaries() async throws -> [ScholarlyEssaySummary]
-}
-
-private struct GalleryAPIClient: GalleryAPIClientProtocol {
-    fileprivate static let live = GalleryAPIClient()
-    fileprivate func fetchExhibitions() async throws -> [Exhibition] { try await GalleryAPI.fetchExhibitions() }
-    fileprivate func fetchManifest(from url: URL) async throws -> RoomManifest { try await GalleryAPI.fetchManifest(from: url) }
-    fileprivate func fetchEssay(id: String) async throws -> ScholarlyEssay { try await GalleryAPI.fetchEssay(id: id) }
-    fileprivate func fetchArtworks(exhibitionSlug: String) async throws -> [ArtworkPackage] { try await GalleryAPI.fetchArtworks(exhibitionSlug: exhibitionSlug) }
-    fileprivate func fetchAllArtworks() async throws -> [ArtworkPackage] { try await GalleryAPI.fetchAllArtworks() }
-    fileprivate func fetchEssaySummaries() async throws -> [ScholarlyEssaySummary] { try await GalleryAPI.fetchEssaySummaries() }
-}
 
 private enum GalleryAPIError: LocalizedError {
     case networkCached, networkConnect, serverInvalid, decodingFailed, unexpected, invalidGeneratedEndpoint, generationDisabledByPolicy

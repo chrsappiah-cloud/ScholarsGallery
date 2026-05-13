@@ -35,15 +35,7 @@ extension GalleryPalette {
         endPoint: .trailing
     )
 
-    static let primaryButtonGradient = LinearGradient(
-        colors: [
-            emerald,
-            Color(red: 0.12, green: 0.55, blue: 0.72),
-            bluePearl
-        ],
-        startPoint: .leading,
-        endPoint: .trailing
-    )
+    static let primaryButtonGradient = GalleryGradients.primaryButton
 
     static let roomCarouselGradient = LinearGradient(
         colors: [void.opacity(0.92), sapphireDark.opacity(0.88)],
@@ -73,17 +65,17 @@ struct SparkleJewelOverlay: View {
         ZStack {
             Image(systemName: "diamond.fill")
                 .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(GalleryTheme.diamond.opacity(0.55))
+                .foregroundStyle(GalleryTheme.glassBright.opacity(0.55))
                 .offset(x: -38, y: -30)
 
             Image(systemName: "sparkle")
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(GalleryTheme.emerald.opacity(0.50))
+                .foregroundStyle(GalleryTheme.accent.opacity(0.50))
                 .offset(x: 44, y: -20)
 
             Image(systemName: "circle.hexagongrid.fill")
                 .font(.system(size: 9, weight: .medium))
-                .foregroundStyle(GalleryTheme.bluePearlLight.opacity(0.45))
+                .foregroundStyle(GalleryTheme.sapphire.opacity(0.45))
                 .offset(x: 50, y: 22)
 
             Image(systemName: "sparkles")
@@ -93,12 +85,12 @@ struct SparkleJewelOverlay: View {
 
             Image(systemName: "waveform.path")
                 .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(GalleryTheme.bluePearl.opacity(0.30))
+                .foregroundStyle(GalleryTheme.sapphire.opacity(0.30))
                 .offset(x: -20, y: -45)
 
             Image(systemName: "diamond")
                 .font(.system(size: 8, weight: .semibold))
-                .foregroundStyle(GalleryTheme.diamondBright.opacity(0.60))
+                .foregroundStyle(GalleryTheme.glassBright.opacity(0.60))
                 .offset(x: 30, y: -42)
         }
         .allowsHitTesting(false)
@@ -134,8 +126,8 @@ struct GalleryProminentButtonStyle: ButtonStyle {
                     .strokeBorder(
                         LinearGradient(
                             colors: [
-                                GalleryTheme.diamond.opacity(isEnabled ? 0.30 : 0),
-                                GalleryTheme.emerald.opacity(isEnabled ? 0.20 : 0)
+                                GalleryTheme.glassBright.opacity(isEnabled ? 0.30 : 0),
+                                GalleryTheme.accent.opacity(isEnabled ? 0.20 : 0)
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
@@ -143,17 +135,9 @@ struct GalleryProminentButtonStyle: ButtonStyle {
                         lineWidth: 0.8
                     )
             )
-            .shadow(color: GalleryTheme.emerald.opacity(isEnabled ? 0.30 : 0), radius: 12, y: 5)
-            .shadow(color: GalleryTheme.bluePearl.opacity(isEnabled ? 0.15 : 0), radius: 20, y: 10)
+            .shadow(color: GalleryTheme.accent.opacity(isEnabled ? 0.30 : 0), radius: 12, y: 5)
+            .shadow(color: GalleryTheme.sapphire.opacity(isEnabled ? 0.15 : 0), radius: 20, y: 10)
             .scaleEffect(configuration.isPressed && isEnabled ? 0.97 : 1)
             .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
-    }
-}
-
-extension View {
-    func galleryCardShadow() -> some View {
-        self
-            .shadow(color: GalleryTheme.indigo.opacity(0.25), radius: 16, x: 0, y: 8)
-            .shadow(color: GalleryTheme.bluePearl.opacity(0.08), radius: 30, x: 0, y: 16)
     }
 }
