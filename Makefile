@@ -27,6 +27,7 @@ test-server:
 # iOS unit tests (Xcode; requires Simulator, e.g. iPhone 17).
 ios-test:
 	xcodebuild -project ScholarsGallery.xcodeproj -scheme ScholarsGallery -configuration Debug \
+		-sdk iphonesimulator \
 		-destination 'platform=iOS Simulator,name=iPhone 17' \
 		-only-testing:ScholarsGalleryTests test
 

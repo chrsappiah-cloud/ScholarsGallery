@@ -38,6 +38,51 @@ struct ServerGenerationTests {
     }
 
     @Test
+    func generationStoreKeepsNewestUniqueRecordsBounded() async throws {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("scholarsgallery-tests", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let fileURL = folder.appendingPathComponent("generated.json")
+
+        let store = GeneratedArtworkStore(fileURL: fileURL)
+        let sharedID = UUID()
+
+        for offset in 0..<205 {
+            let id = offset == 204 ? sharedID : UUID()
+            let record = GeneratedArtworkRecord(
+                id: id,
+                status: "completed",
+                imageURL: "https://example.com/\(offset).jpg",
+                prompt: "Prompt \(offset)",
+                provider: "mock",
+                createdAt: Date(timeIntervalSince1970: TimeInterval(1_700_000_000 + offset))
+            )
+            try await store.append(record)
+        }
+
+        try await store.append(
+            GeneratedArtworkRecord(
+                id: sharedID,
+                status: "completed",
+                imageURL: "https://example.com/final.jpg",
+                prompt: "Newest prompt wins",
+                provider: "mock",
+                createdAt: Date(timeIntervalSince1970: 1_800_000_000)
+            )
+        )
+
+        let items = try await store.list(limit: 300)
+        #expect(items.count == 100)
+        #expect(items.first?.prompt == "Newest prompt wins")
+        #expect(items.filter { $0.id == sharedID }.count == 1)
+
+        let persisted = try JSONCoding.makeDecoder().decode([GeneratedArtworkRecord].self, from: Data(contentsOf: fileURL))
+        #expect(persisted.count == 200)
+        #expect(persisted.first?.prompt == "Newest prompt wins")
+    }
+
+    @Test
     func rateLimiterBlocksAfterThreshold() async {
         let limiter = GenerationRateLimiter(maxRequests: 2, intervalSeconds: 60)
         #expect(await limiter.allow(clientKey: "127.0.0.1"))
@@ -83,6 +128,23 @@ struct ServerGenerationTests {
         await #expect(throws: Abort.self) {
             _ = try await GenerationSecurityMiddleware().respond(to: request, chainingTo: OkResponder())
         }
+        try await app.asyncShutdown()
+    }
+
+    @Test
+    func middlewareAcceptsTrimmedTokenValue() async throws {
+        let app = try await Application.make(.testing)
+        app.generationAuthToken = "secret-token"
+        let request = Request(
+            application: app,
+            method: .POST,
+            url: URI(path: "/api/artworks/generate"),
+            on: app.eventLoopGroup.next()
+        )
+        request.headers.add(name: "X-Generation-Token", value: "  secret-token  ")
+
+        let response = try await GenerationSecurityMiddleware().respond(to: request, chainingTo: OkResponder())
+        #expect(response.status == .ok)
         try await app.asyncShutdown()
     }
 

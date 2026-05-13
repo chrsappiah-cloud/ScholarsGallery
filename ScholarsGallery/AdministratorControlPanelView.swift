@@ -83,6 +83,11 @@ struct AdministratorControlPanelView: View {
                             .foregroundStyle(.red)
                     }
 
+                    Divider()
+
+                    subscriberManagementSection
+                    revenueSection
+
                     Text(String(localized: "admin.securityFootnote"))
                         .font(.caption2)
                         .foregroundStyle(.secondary)
@@ -99,6 +104,81 @@ struct AdministratorControlPanelView: View {
                     }
                 }
             }
+        }
+    }
+
+    private var subscriberManagementSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Subscriber Management")
+                .font(.headline)
+                .foregroundStyle(GalleryTheme.sapphireDark)
+
+            VStack(alignment: .leading, spacing: 8) {
+                LabeledContent("Active Subscribers") {
+                    Text("—")
+                        .font(.subheadline.monospaced())
+                }
+                LabeledContent("Studio Pro Monthly") {
+                    Text("—")
+                        .font(.subheadline.monospaced())
+                }
+                LabeledContent("Studio Pro Yearly") {
+                    Text("—")
+                        .font(.subheadline.monospaced())
+                }
+                Text("Connect App Store Connect for real-time subscriber data")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(GalleryTheme.card)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(GalleryTheme.cardStroke, lineWidth: 1)
+                    )
+            )
+            .galleryCardShadow()
+        }
+    }
+
+    private var revenueSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Revenue Dashboard")
+                .font(.headline)
+                .foregroundStyle(GalleryTheme.sapphireDark)
+
+            VStack(alignment: .leading, spacing: 8) {
+                LabeledContent("Total Transactions") {
+                    Text("—")
+                        .font(.subheadline.monospaced())
+                }
+                LabeledContent("Monthly Revenue") {
+                    Text("—")
+                        .font(.subheadline.monospaced())
+                }
+                LabeledContent("Payment Status") {
+                    Text(policyDraft.checkoutEnabled ? "Enabled" : "Disabled")
+                        .font(.subheadline)
+                        .foregroundStyle(policyDraft.checkoutEnabled ? GalleryTheme.accent : .red)
+                }
+                Text("Revenue data syncs from App Store Connect Server Notifications")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(GalleryTheme.card)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(GalleryTheme.cardStroke, lineWidth: 1)
+                    )
+            )
+            .galleryCardShadow()
         }
     }
 

@@ -4,6 +4,10 @@ import os
 final class ICloudKeyValueSync: @unchecked Sendable {
     static let shared = ICloudKeyValueSync()
 
+    static let didReceiveExternalChangeNotification = Notification.Name("ICloudKeyValueSync.didReceiveExternalChange")
+    static let changedKeysUserInfoKey = "changedKeys"
+    static let changeReasonUserInfoKey = "changeReason"
+
     private let store = NSUbiquitousKeyValueStore.default
     private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ScholarsGallery",
                                  category: "ICloudKV")
@@ -34,6 +38,8 @@ final class ICloudKeyValueSync: @unchecked Sendable {
               let reason = info[NSUbiquitousKeyValueStoreChangeReasonKey] as? Int
         else { return }
 
+        let changedKeys = info[NSUbiquitousKeyValueStoreChangedKeysKey] as? [String] ?? []
+
         switch reason {
         case NSUbiquitousKeyValueStoreServerChange:
             logger.info("iCloud KV: server change received")
@@ -46,6 +52,19 @@ final class ICloudKeyValueSync: @unchecked Sendable {
         default:
             break
         }
+
+        NotificationCenter.default.post(
+            name: Self.didReceiveExternalChangeNotification,
+            object: self,
+            userInfo: [
+                Self.changedKeysUserInfoKey: changedKeys,
+                Self.changeReasonUserInfoKey: reason,
+            ]
+        )
+    }
+
+    func synchronize() {
+        store.synchronize()
     }
 
     // MARK: - Preferences

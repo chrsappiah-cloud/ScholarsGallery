@@ -20,8 +20,12 @@ This project now supports automatic backup of local collection/favorites data to
 
 ## 3) Backup behavior in app
 
-- On first app launch, it attempts to restore the latest CloudKit backup.
-- When app moves to background, it uploads collection and favorites backups.
+- On first app launch, and again when the app becomes active after an iCloud key-value change, it attempts to restore from:
+  - legacy CloudKit backup
+  - iCloud Documents snapshot
+  - CloudKit record-based sync
+  - the server collection sync store when the Vapor API is reachable
+- When app moves to background, it uploads collection and favorites backups and syncs the same collection/favorites state back to the server.
 - Backups are stored in the user's **private CloudKit database** and are account-scoped.
 
 ## 4) Notes

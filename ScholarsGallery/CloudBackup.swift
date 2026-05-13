@@ -22,15 +22,27 @@ enum CloudBackupError: LocalizedError {
 actor CloudBackupService {
     static let shared = CloudBackupService()
 
-    private let container = CKContainer.default()
-    private let database: CKDatabase
     private let recordType = "UserBackup"
     private let recordName = "primary"
     private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ScholarsGallery",
                                  category: "CloudBackup")
 
-    private init() {
-        database = CKContainer.default().privateCloudDatabase
+    private init() {}
+
+    private func makeContainer() -> CKContainer {
+        CKContainer.default()
+    }
+
+    private func isAvailable() async -> Bool {
+        guard FileManager.default.ubiquityIdentityToken != nil else {
+            return false
+        }
+        do {
+            return try await makeContainer().accountStatus() == .available
+        } catch {
+            logger.warning("Cloud backup account check failed: \(error.localizedDescription)")
+            return false
+        }
     }
 
     func upload(snapshot: BackupSnapshot) async throws {
@@ -38,6 +50,8 @@ actor CloudBackupService {
             throw CloudBackupError.iCloudUnavailable
         }
 
+        let container = makeContainer()
+        let database = container.privateCloudDatabase
         let recordID = CKRecord.ID(recordName: recordName)
         let record = CKRecord(recordType: recordType, recordID: recordID)
         record["collectionRaw"] = snapshot.collectionRaw as CKRecordValue
@@ -51,6 +65,7 @@ actor CloudBackupService {
     func fetchLatestSnapshot() async throws -> BackupSnapshot? {
         guard await isAvailable() else { return nil }
 
+        let database = makeContainer().privateCloudDatabase
         let recordID = CKRecord.ID(recordName: recordName)
         do {
             let record = try await database.record(for: recordID)
@@ -69,16 +84,6 @@ actor CloudBackupService {
             )
         } catch let error as CKError where error.code == .unknownItem {
             return nil
-        }
-    }
-
-    private func isAvailable() async -> Bool {
-        do {
-            let status = try await container.accountStatus()
-            return status == .available
-        } catch {
-            logger.warning("CloudKit account check failed: \(error.localizedDescription)")
-            return false
         }
     }
 }

@@ -6,10 +6,10 @@ import SwiftUI
 typealias GalleryTheme = GalleryPalette
 
 extension GalleryPalette {
-    static let background    = void
+    static let background = void
     static let backgroundMist = surface
-    static let card          = elevated
-    static let cardStroke    = glassStroke
+    static let card = elevated
+    static let cardStroke = glassStroke
 
     static let heroGradient = LinearGradient(
         colors: [void, sapphireDark.opacity(0.55), void],
@@ -36,7 +36,11 @@ extension GalleryPalette {
     )
 
     static let primaryButtonGradient = LinearGradient(
-        colors: [accent, Color(red: 0.12, green: 0.52, blue: 0.68)],
+        colors: [
+            emerald,
+            Color(red: 0.12, green: 0.55, blue: 0.72),
+            bluePearl
+        ],
         startPoint: .leading,
         endPoint: .trailing
     )
@@ -63,3 +67,93 @@ extension GalleryPalette {
 // MARK: - App Background (delegates to GalleryUI.GalleryBackground)
 
 typealias GalleryAppBackground = GalleryBackground
+
+struct SparkleJewelOverlay: View {
+    var body: some View {
+        ZStack {
+            Image(systemName: "diamond.fill")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(GalleryTheme.diamond.opacity(0.55))
+                .offset(x: -38, y: -30)
+
+            Image(systemName: "sparkle")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(GalleryTheme.emerald.opacity(0.50))
+                .offset(x: 44, y: -20)
+
+            Image(systemName: "circle.hexagongrid.fill")
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(GalleryTheme.bluePearlLight.opacity(0.45))
+                .offset(x: 50, y: 22)
+
+            Image(systemName: "sparkles")
+                .font(.system(size: 16, weight: .light))
+                .foregroundStyle(GalleryTheme.roseSoft.opacity(0.35))
+                .offset(x: -50, y: 34)
+
+            Image(systemName: "waveform.path")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(GalleryTheme.bluePearl.opacity(0.30))
+                .offset(x: -20, y: -45)
+
+            Image(systemName: "diamond")
+                .font(.system(size: 8, weight: .semibold))
+                .foregroundStyle(GalleryTheme.diamondBright.opacity(0.60))
+                .offset(x: 30, y: -42)
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+struct GalleryProminentButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.headline.weight(.semibold))
+            .foregroundStyle(.white)
+            .padding(.vertical, 14)
+            .frame(maxWidth: .infinity)
+            .background {
+                if isEnabled {
+                    GalleryTheme.primaryButtonGradient
+                } else {
+                    LinearGradient(
+                        colors: [
+                            Color.gray.opacity(0.30),
+                            Color.gray.opacity(0.20)
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: [
+                                GalleryTheme.diamond.opacity(isEnabled ? 0.30 : 0),
+                                GalleryTheme.emerald.opacity(isEnabled ? 0.20 : 0)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 0.8
+                    )
+            )
+            .shadow(color: GalleryTheme.emerald.opacity(isEnabled ? 0.30 : 0), radius: 12, y: 5)
+            .shadow(color: GalleryTheme.bluePearl.opacity(isEnabled ? 0.15 : 0), radius: 20, y: 10)
+            .scaleEffect(configuration.isPressed && isEnabled ? 0.97 : 1)
+            .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
+    }
+}
+
+extension View {
+    func galleryCardShadow() -> some View {
+        self
+            .shadow(color: GalleryTheme.indigo.opacity(0.25), radius: 16, x: 0, y: 8)
+            .shadow(color: GalleryTheme.bluePearl.opacity(0.08), radius: 30, x: 0, y: 16)
+    }
+}

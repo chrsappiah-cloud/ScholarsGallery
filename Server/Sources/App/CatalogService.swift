@@ -99,11 +99,8 @@ enum CatalogLoader: Sendable {
         request.httpMethod = "GET"
         request.addValue(serviceRoleKey, forHTTPHeaderField: "apikey")
         request.addValue("Bearer \(serviceRoleKey)", forHTTPHeaderField: "Authorization")
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-            throw Abort(.badGateway, reason: "Supabase catalog GET failed.")
-        }
-        return data
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        return try await ServerHTTPClient.perform(request, failurePrefix: "Supabase catalog GET")
     }
 
     private static func makeDecoder() -> JSONDecoder {

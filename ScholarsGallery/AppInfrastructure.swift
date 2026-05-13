@@ -54,6 +54,17 @@ struct AppJSONCache {
     }
 }
 
+enum AppHTTPSession {
+    static let shared: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 10
+        config.timeoutIntervalForResource = 20
+        config.waitsForConnectivity = false
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        return URLSession(configuration: config)
+    }()
+}
+
 struct CollectionRecordCodec {
     static func encode(_ records: [CollectionRecord]) -> String {
         guard let data = try? JSONEncoder().encode(records),

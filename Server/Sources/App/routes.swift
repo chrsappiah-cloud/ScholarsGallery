@@ -246,6 +246,16 @@ func routes(_ app: Application) throws {
         return try await service.assist(input)
     }
 
+    app.post("api", "scholars", "describe") { req async throws -> ScholarlyDescribeResponse in
+        let input = try req.content.decode(ScholarlyDescribeRequest.self)
+        guard input.artworkTitle.trimmingCharacters(in: .whitespacesAndNewlines).count >= 3 else {
+            throw Abort(.badRequest, reason: "Artwork title must be at least 3 characters.")
+        }
+        let service = req.application.scholarlyDescriptionService
+            ?? ScholarlyDescriptionService(openAI: nil, model: "mock")
+        return try await service.describe(input)
+    }
+
     let admin = app.grouped("api", "admin").grouped(AdminSecurityMiddleware())
     admin.get("overview") { req async throws -> AdminOverviewDTO in
         let policy = await currentAdminPolicy(on: req.application)

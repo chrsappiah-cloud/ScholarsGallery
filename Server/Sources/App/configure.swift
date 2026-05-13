@@ -48,6 +48,12 @@ func configure(_ app: Application) throws {
         : OpenAIChatService(apiKey: openAIKey)
     app.dolaAssistantService = DolaAssistantService(openAI: dolaChatService, model: dolaModel)
     app.logger.info("Dola assistant provider: \(app.dolaAssistantService?.provider.rawValue ?? "mock") (model=\(dolaModel))")
+
+    let scholarModel = (Environment.get("SCHOLAR_DESCRIPTION_MODEL") ?? "gpt-4o-mini")
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    let scholarChatService: OpenAIChatService? = openAIKey.isEmpty ? nil : OpenAIChatService(apiKey: openAIKey)
+    app.scholarlyDescriptionService = ScholarlyDescriptionService(openAI: scholarChatService, model: scholarModel)
+    app.logger.info("Scholarly description provider: \(app.scholarlyDescriptionService?.provider.rawValue ?? "mock") (model=\(scholarModel))")
     if let token = Environment.get("GENERATION_API_TOKEN"), !token.isEmpty {
         app.generationAuthToken = token
     }
@@ -88,5 +94,11 @@ func configure(_ app: Application) throws {
         app.logger.info("Admin API disabled until ADMIN_API_TOKEN is set")
     }
 
+    let collectionStoreURL = ServerPaths.generatedArtworksStoreURL()
+        .deletingLastPathComponent()
+        .appendingPathComponent("collection-store.json")
+    app.collectionStore = CollectionStoreActor(fileURL: collectionStoreURL)
+
     try routes(app)
+    try registerCollectionRoutes(app)
 }

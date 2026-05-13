@@ -17,7 +17,8 @@ final class ScholarsGalleryUITests: XCTestCase {
         generateMode: String? = nil,
         exhibitionsJSON: String? = nil,
         essaysJSON: String? = nil,
-        recentGenerationsJSON: String? = nil
+        recentGenerationsJSON: String? = nil,
+        apiBaseURL: String? = nil
     ) -> XCUIApplication {
         let app = XCUIApplication()
         if let m = generateMode {
@@ -31,6 +32,9 @@ final class ScholarsGalleryUITests: XCTestCase {
         }
         if let r = recentGenerationsJSON {
             app.launchEnvironment["UITEST_RECENT_GENERATIONS_JSON"] = r
+        }
+        if let apiBaseURL {
+            app.launchEnvironment["UITEST_GALLERY_API_BASE_URL"] = apiBaseURL
         }
         return app
     }
@@ -513,5 +517,44 @@ final class ScholarsGalleryUITests: XCTestCase {
 
         let askBtn = el("dola.askButton", in: app)
         XCTAssertTrue(askBtn.waitForExistence(timeout: 8), "Ask button should appear after typing")
+    }
+
+    @MainActor
+    func testEndToEndLiveBackendJourneyAcrossTabs() throws {
+        let app = makeApp(apiBaseURL: "http://127.0.0.1:8081")
+        app.launch()
+
+        XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 12), "Tab bar should appear")
+
+        let exhibitionTitle = app.staticTexts["Worlds Written in Light"]
+        XCTAssertTrue(exhibitionTitle.waitForExistence(timeout: 20), "Live backend exhibitions should load")
+        exhibitionTitle.tap()
+        XCTAssertTrue(app.navigationBars.firstMatch.waitForExistence(timeout: 8), "Exhibition detail should open")
+        let backButton = app.navigationBars.buttons.firstMatch
+        if backButton.waitForExistence(timeout: 3) {
+            backButton.tap()
+        }
+
+        let studioTab = app.tabBars.buttons["Studio"]
+        XCTAssertTrue(studioTab.waitForExistence(timeout: 8))
+        studioTab.tap()
+        let generateButton = el("studio.generateButton", in: app)
+        XCTAssertTrue(generateButton.waitForExistence(timeout: 8), "Studio generate button should be visible")
+        generateButton.tap()
+        XCTAssertTrue(el("studio.resultProvider", in: app).waitForExistence(timeout: 15),
+                      "Studio should render a generated result from the live backend")
+
+        let scholarshipTab = app.tabBars.buttons["Scholarship"]
+        XCTAssertTrue(scholarshipTab.waitForExistence(timeout: 8))
+        scholarshipTab.tap()
+        let essayTitle = app.staticTexts["Generative Art as Scholarly Surface"]
+        XCTAssertTrue(essayTitle.waitForExistence(timeout: 20), "Scholarship should load live essay summaries")
+        essayTitle.tap()
+        XCTAssertTrue(app.navigationBars.firstMatch.waitForExistence(timeout: 8), "Essay detail should open")
+
+        let collectionTab = app.tabBars.buttons["Collection"]
+        XCTAssertTrue(collectionTab.waitForExistence(timeout: 8))
+        collectionTab.tap()
+        XCTAssertTrue(app.navigationBars.firstMatch.waitForExistence(timeout: 8), "Collection tab should remain responsive")
     }
 }

@@ -3,6 +3,11 @@ import Foundation
 /// Shared API host for the iOS app (matches `GALLERY_API_BASE_URL` in Info / xcconfig).
 enum GalleryAPIConfiguration {
     static var baseURL: URL {
+        if let override = ProcessInfo.processInfo.environment["UITEST_GALLERY_API_BASE_URL"],
+           let url = URL(string: override),
+           !override.isEmpty {
+            return url
+        }
         if let configured = Bundle.main.object(forInfoDictionaryKey: "GALLERY_API_BASE_URL") as? String,
            let url = URL(string: configured), !configured.isEmpty {
             return url

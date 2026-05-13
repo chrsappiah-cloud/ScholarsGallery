@@ -49,7 +49,7 @@ actor GeneratedArtworkStore {
         let records: [GeneratedArtworkRecord]
         if let data = try? Data(contentsOf: fileURL),
            let decoded = try? decoder.decode([GeneratedArtworkRecord].self, from: data) {
-            records = decoded
+            records = Self.normalizedRecords(from: decoded)
         } else {
             records = []
         }
@@ -63,10 +63,7 @@ actor GeneratedArtworkStore {
     func append(_ record: GeneratedArtworkRecord) async throws {
         switch backend {
         case .file(let url, var records):
-            records.insert(record, at: 0)
-            if records.count > 200 {
-                records = Array(records.prefix(200))
-            }
+            records = Self.normalizedRecords(from: [record] + records)
             backend = .file(url, records)
             persistFileIfNeeded()
         case .supabase(let projectURL, let key):
@@ -91,6 +88,24 @@ actor GeneratedArtworkStore {
         let encoder = JSONCoding.makeEncoder()
         guard let data = try? encoder.encode(records) else { return }
         try? data.write(to: url, options: .atomic)
+    }
+
+    private static func normalizedRecords(from records: [GeneratedArtworkRecord]) -> [GeneratedArtworkRecord] {
+        var uniqueRecords: [UUID: GeneratedArtworkRecord] = [:]
+        for record in records {
+            if uniqueRecords[record.id] == nil {
+                uniqueRecords[record.id] = record
+            }
+        }
+        return uniqueRecords.values
+            .sorted { lhs, rhs in
+                if lhs.createdAt == rhs.createdAt {
+                    return lhs.id.uuidString > rhs.id.uuidString
+                }
+                return lhs.createdAt > rhs.createdAt
+            }
+            .prefix(200)
+            .map { $0 }
     }
 
     private static func restTableURL(projectURL: URL) -> URL {
@@ -120,13 +135,7 @@ actor GeneratedArtworkStore {
         let body = try encoder.encode(record)
         request.httpBody = body
 
-        let (_, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw Abort(.badGateway, reason: "Supabase insert: invalid response.")
-        }
-        guard (200...299).contains(http.statusCode) else {
-            throw Abort(.badGateway, reason: "Supabase insert failed (HTTP \(http.statusCode)).")
-        }
+        _ = try await ServerHTTPClient.perform(request, failurePrefix: "Supabase insert")
     }
 
     private static func fetchSupabaseRows(
@@ -148,13 +157,7 @@ actor GeneratedArtworkStore {
         request.addValue(serviceRoleKey, forHTTPHeaderField: "apikey")
         request.addValue("Bearer \(serviceRoleKey)", forHTTPHeaderField: "Authorization")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw Abort(.badGateway, reason: "Supabase list: invalid response.")
-        }
-        guard (200...299).contains(http.statusCode) else {
-            throw Abort(.badGateway, reason: "Supabase list failed (HTTP \(http.statusCode)).")
-        }
+        let data = try await ServerHTTPClient.perform(request, failurePrefix: "Supabase list")
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         decoder.keyDecodingStrategy = .convertFromSnakeCase
