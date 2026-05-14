@@ -44,6 +44,7 @@ Adjust `ExportOptions-appstore.plist` (`method` is `app-store` for iOS App Store
 - CD resolves a GitHub environment: manual dispatch uses the selected `staging` / `production` value, tags default to `production`, and other runs default to `staging`.
 - Unsigned release archives are always produced as artifacts.
 - When signing secrets are configured in the selected GitHub environment, the workflow also creates a signed archive, exports an IPA with `ci_scripts/ExportOptions-testflight.plist`, and uploads it to **TestFlight** with `xcrun altool`.
+- The current TestFlight-ready feature set includes the on-device **Study Coach** powered by `FoundationModels`, quick-start lesson topics, and the hardened dark-mode contrast/background refresh across scholarship and essay surfaces.
 - Required GitHub **environment secrets**:
   - `APP_STORE_CONNECT_ISSUER_ID`
   - `APP_STORE_CONNECT_KEY_ID`
@@ -57,22 +58,47 @@ Adjust `ExportOptions-appstore.plist` (`method` is `app-store` for iOS App Store
 Base64 secrets are expected to contain the raw `.p8`, `.p12`, and `.mobileprovision` files.
 If a TestFlight upload is requested and any of these secrets are missing, CD now fails immediately instead of silently skipping the upload.
 
-## 4. Symbols and crashes
+## 4. Install on a physical iPhone
+
+For direct local installs to a tethered development device such as **Christopher’s iPhone (iPhone 17 Pro Max)**:
+
+1. Build the app for the physical device:
+
+```bash
+xcodebuild -project ScholarsGallery.xcodeproj \
+  -scheme ScholarsGallery \
+  -configuration Debug \
+  -destination 'id=<DEVICE_IDENTIFIER>' \
+  -derivedDataPath build/device \
+  build
+```
+
+2. Install the built `.app` bundle with `devicectl`:
+
+```bash
+xcrun devicectl device install app \
+  --device <DEVICE_IDENTIFIER> \
+  build/device/Build/Products/Debug-iphoneos/ScholarsGallery.app
+```
+
+Use `xcrun devicectl list devices` to confirm the connected identifier before running the install.
+
+## 5. Symbols and crashes
 
 Release builds produce **dSYMs** for symbolicated crash reports. Ensure **Upload your app’s symbols to Apple** is enabled when distributing (Xcode Organizer default for App Store uploads matches `uploadSymbols` in the export plist).
 
-## 5. Privacy
+## 6. Privacy
 
 - `ScholarsGallery/PrivacyInfo.xcprivacy` declares **UserDefaults** access (`CA92.1`) for collection/favorites persistence.
 - Update this file if you add APIs that require **required reason** disclosures (file timestamp, disk space, etc.).
 
-## 6. Capabilities checklist before submission
+## 7. Capabilities checklist before submission
 
 - **iCloud / CloudKit**: container `iCloud.$(CFBundleIdentifier)` must exist in the developer portal and match entitlements.
 - **Push**: Release uses **production** APS; ensure the App ID has Push enabled and provisioning profiles are regenerated after entitlement changes.
 - **Background modes**: `remote-notification` is declared in `Info.plist` only if you actually implement push handling.
 
-## 7. CI / CD
+## 8. CI / CD
 
 ### GitHub Actions
 
@@ -84,6 +110,6 @@ Release builds produce **dSYMs** for symbolicated crash reports. Ensure **Upload
 - **Post-clone**: `ci_scripts/ci_post_clone.sh` resolves packages, builds **Debug** for the iOS Simulator, then builds **Release** for **generic/iOS** to catch production-only issues early.
 - Set **Release** `INFOPLIST_KEY_GENERATION_API_TOKEN` (or inject via **Environment variables** in the workflow) for any server that requires `X-Generation-Token`; never commit production secrets into the repo.
 
-## 8. App Store Connect metadata
+## 9. App Store Connect metadata
 
 Prepare outside Xcode: screenshots, description, keywords, support URL, privacy policy URL, age rating questionnaire, and **Data collection** answers consistent with `PrivacyInfo.xcprivacy`.

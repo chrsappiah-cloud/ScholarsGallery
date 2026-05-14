@@ -105,6 +105,19 @@ struct ScholarCoachResource: Identifiable, Equatable {
     let keywords: [String]
 }
 
+enum ScholarCoachQuickStart {
+    static let topics = [
+        "Trauma-aware communication in aged care",
+        "Dignity-first dementia support",
+        "Co-design with families and carers"
+    ]
+
+    static func initialTopic(lastTopic: String) -> String {
+        let trimmedLastTopic = lastTopic.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedLastTopic.isEmpty ? topics[0] : trimmedLastTopic
+    }
+}
+
 enum ScholarCoachResourceCatalog {
     static let all: [ScholarCoachResource] = [
         ScholarCoachResource(
@@ -246,7 +259,9 @@ struct OnDeviceScholarStudyCoachView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .onAppear {
-            if topic.isEmpty { topic = lastTopic }
+            if topic.isEmpty {
+                topic = ScholarCoachQuickStart.initialTopic(lastTopic: lastTopic)
+            }
             ensureSession()
         }
     }
@@ -278,6 +293,7 @@ struct OnDeviceScholarStudyCoachView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 introCard
+                quickStartSection
 
                 Picker("Coach mode", selection: $mode) {
                     ForEach(ScholarCoachMode.allCases) { mode in
@@ -364,6 +380,47 @@ struct OnDeviceScholarStudyCoachView: View {
             .padding(.bottom, 100)
         }
         .background(GalleryAppBackground().ignoresSafeArea())
+    }
+
+    private var quickStartSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Quick start")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(GalleryTheme.textPrimary)
+                Spacer()
+                Text("Tap a topic, then generate")
+                    .font(.caption)
+                    .foregroundStyle(GalleryTheme.textSecondary)
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(ScholarCoachQuickStart.topics, id: \.self) { quickStartTopic in
+                        Button {
+                            applyQuickStart(quickStartTopic)
+                        } label: {
+                            Text(quickStartTopic)
+                                .font(.caption.weight(.semibold))
+                                .multilineTextAlignment(.leading)
+                                .foregroundStyle(topic == quickStartTopic ? GalleryTheme.textPrimary : GalleryTheme.accent)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 10)
+                                .background(
+                                    (topic == quickStartTopic ? GalleryTheme.accent.opacity(0.16) : GalleryTheme.card),
+                                    in: Capsule()
+                                )
+                                .overlay(
+                                    Capsule()
+                                        .stroke(topic == quickStartTopic ? GalleryTheme.accent : GalleryTheme.cardStroke, lineWidth: 1)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("studyCoach.quickStart.\(quickStartTopic)")
+                    }
+                }
+            }
+        }
     }
 
     private var introCard: some View {
@@ -631,6 +688,11 @@ struct OnDeviceScholarStudyCoachView: View {
         guard SystemLanguageModel.default.isAvailable else { return }
         session = LanguageModelSession(instructions: coachInstructions)
         session?.prewarm()
+    }
+
+    private func applyQuickStart(_ quickStartTopic: String) {
+        topic = quickStartTopic
+        resetSession(clearTopic: false)
     }
 
     private func resetSession(clearTopic: Bool) {

@@ -13,7 +13,7 @@ public struct GlassCardModifier: ViewModifier {
         content
             .background(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(.ultraThinMaterial.opacity(0.45))
+                    .fill(.ultraThinMaterial.opacity(0.58))
                     .background(
                         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                             .fill(GalleryPalette.glass)
@@ -33,6 +33,6 @@ public extension View {
     }
 
     func galleryCardShadow() -> some View {
-        shadow(color: .black.opacity(0.35), radius: 20, x: 0, y: 10)
+        shadow(color: .black.opacity(0.20), radius: 18, x: 0, y: 8)
     }
 }

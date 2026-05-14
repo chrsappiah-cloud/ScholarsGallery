@@ -356,4 +356,19 @@ struct ScholarsGalleryTests {
         #expect(prompt.contains("\"trauma-aware communication\""))
         #expect(prompt.contains("Adapt this for first-year nursing students"))
     }
+
+    @Test func studyCoachQuickStartUsesDefaultTopicWhenLastTopicMissing() {
+        #expect(!ScholarCoachQuickStart.topics.isEmpty)
+        #expect(
+            ScholarCoachQuickStart.initialTopic(lastTopic: "   ")
+            == ScholarCoachQuickStart.topics[0]
+        )
+    }
+
+    @Test func studyCoachQuickStartPreservesTrimmedLastTopic() {
+        #expect(
+            ScholarCoachQuickStart.initialTopic(lastTopic: "  reflective dementia care  ")
+            == "reflective dementia care"
+        )
+    }
 }

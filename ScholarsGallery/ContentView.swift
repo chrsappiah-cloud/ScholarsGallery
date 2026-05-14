@@ -1100,7 +1100,7 @@ private struct ScholarlyEssayView: View {
                     .foregroundStyle(GalleryTheme.accent)
                 Text(.init(essay.markdownBody))
                     .font(.callout)
-                    .foregroundStyle(GalleryTheme.textSecondary)
+                    .foregroundStyle(GalleryTheme.textPrimary)
                     .lineSpacing(5)
                 if !essay.references.isEmpty {
                     Rectangle()
@@ -1113,7 +1113,7 @@ private struct ScholarlyEssayView: View {
                     ForEach(essay.references, id: \.self) { ref in
                         Text("• \(ref)")
                             .font(.caption)
-                            .foregroundStyle(GalleryTheme.textTertiary)
+                            .foregroundStyle(GalleryTheme.textSecondary)
                     }
                 }
             }
@@ -1533,7 +1533,7 @@ private struct ArtworkDetailView: View {
 @MainActor
 private struct ScholarshipHomeView: View {
     @StateObject private var vm = ScholarshipViewModel()
-    @State private var selectedSection: ScholarshipSection = .essays
+    @State private var selectedSection: ScholarshipSection = .coach
 
     private enum ScholarshipSection: String, CaseIterable {
         case artworks = "AI Descriptions"
