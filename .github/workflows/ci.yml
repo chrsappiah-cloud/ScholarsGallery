@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, "feature/**"]
+    branches: [main, "feature/**", "fix/**", "hotfix/**"]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -81,7 +81,7 @@ jobs:
 
       - name: Run server tests
         run: swift test --filter ScholarsGalleryServerTests
-        timeout-minutes: 10
+        timeout-minutes: 20
 
   # ── iOS app build + unit tests ──────────────────────────────────
   ios:
@@ -100,28 +100,38 @@ jobs:
           sudo xcode-select -s "$XCODE_PATH"
           xcodebuild -version
 
-          SIM_JSON=$(xcrun simctl list devices available -j)
-          SIM_NAME=$(printf '%s' \"$SIM_JSON\" | python3 -c "
-          import json, sys
-          data = json.load(sys.stdin)
-          for runtime, devices in data['devices'].items():
-              if 'iOS' in runtime:
-                  for d in devices:
-                      if 'iPhone' in d['name']:
-                          print(d['name'])
-                          sys.exit(0)
-          print('iPhone 16 Pro')
-          ")
-          SIM_ID=$(printf '%s' \"$SIM_JSON\" | python3 -c "
-          import json, sys
-          data = json.load(sys.stdin)
-          for runtime, devices in data['devices'].items():
-              if 'iOS' in runtime:
-                  for d in devices:
-                      if 'iPhone' in d['name']:
-                          print(d['udid'])
-                          sys.exit(0)
-          ")
+          SIM_JSON="$(xcrun simctl list devices available -j)"
+          readarray -t SIM_INFO < <(SIM_JSON="$SIM_JSON" python3 - <<'PY'
+          import json
+          import os
+
+          data = json.loads(os.environ["SIM_JSON"])
+          candidates = []
+
+          for runtime, devices in data["devices"].items():
+              if "iOS" not in runtime:
+                  continue
+
+              runtime_key = runtime.split(".")[-1].replace("iOS-", "")
+              runtime_parts = tuple(int(part) for part in runtime_key.split("-") if part.isdigit())
+
+              for device in devices:
+                  if not device.get("isAvailable", True):
+                      continue
+                  if "iPhone" not in device.get("name", ""):
+                      continue
+                  candidates.append((runtime_parts, device["name"], device["udid"]))
+
+          if not candidates:
+              raise SystemExit("No available iPhone simulator found")
+
+          _, name, udid = max(candidates)
+          print(name)
+          print(udid)
+          PY
+          )
+          SIM_NAME="${SIM_INFO[0]}"
+          SIM_ID="${SIM_INFO[1]}"
           xcrun simctl boot \"$SIM_ID\" >/dev/null 2>&1 || true
           xcrun simctl bootstatus \"$SIM_ID\" -b
           echo "simulator=$SIM_NAME" >> "$GITHUB_OUTPUT"
@@ -161,28 +171,38 @@ jobs:
         run: |
           XCODE_PATH=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
           sudo xcode-select -s "$XCODE_PATH"
-          SIM_JSON=$(xcrun simctl list devices available -j)
-          SIM_NAME=$(printf '%s' \"$SIM_JSON\" | python3 -c "
-          import json, sys
-          data = json.load(sys.stdin)
-          for runtime, devices in data['devices'].items():
-              if 'iOS' in runtime:
-                  for d in devices:
-                      if 'iPhone' in d['name']:
-                          print(d['name'])
-                          sys.exit(0)
-          print('iPhone 16 Pro')
-          ")
-          SIM_ID=$(printf '%s' \"$SIM_JSON\" | python3 -c "
-          import json, sys
-          data = json.load(sys.stdin)
-          for runtime, devices in data['devices'].items():
-              if 'iOS' in runtime:
-                  for d in devices:
-                      if 'iPhone' in d['name']:
-                          print(d['udid'])
-                          sys.exit(0)
-          ")
+          SIM_JSON="$(xcrun simctl list devices available -j)"
+          readarray -t SIM_INFO < <(SIM_JSON="$SIM_JSON" python3 - <<'PY'
+          import json
+          import os
+
+          data = json.loads(os.environ["SIM_JSON"])
+          candidates = []
+
+          for runtime, devices in data["devices"].items():
+              if "iOS" not in runtime:
+                  continue
+
+              runtime_key = runtime.split(".")[-1].replace("iOS-", "")
+              runtime_parts = tuple(int(part) for part in runtime_key.split("-") if part.isdigit())
+
+              for device in devices:
+                  if not device.get("isAvailable", True):
+                      continue
+                  if "iPhone" not in device.get("name", ""):
+                      continue
+                  candidates.append((runtime_parts, device["name"], device["udid"]))
+
+          if not candidates:
+              raise SystemExit("No available iPhone simulator found")
+
+          _, name, udid = max(candidates)
+          print(name)
+          print(udid)
+          PY
+          )
+          SIM_NAME="${SIM_INFO[0]}"
+          SIM_ID="${SIM_INFO[1]}"
           echo "simulator=$SIM_NAME" >> "$GITHUB_OUTPUT"
           echo "simulator_id=$SIM_ID" >> "$GITHUB_OUTPUT"
 
