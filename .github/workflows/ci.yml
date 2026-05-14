@@ -101,7 +101,7 @@ jobs:
           xcodebuild -version
 
           SIM_JSON="$(xcrun simctl list devices available -j)"
-          readarray -t SIM_INFO < <(SIM_JSON="$SIM_JSON" python3 - <<'PY'
+          SIM_INFO="$(SIM_JSON="$SIM_JSON" python3 - <<'PY'
           import json
           import os
 
@@ -129,9 +129,9 @@ jobs:
           print(name)
           print(udid)
           PY
-          )
-          SIM_NAME="${SIM_INFO[0]}"
-          SIM_ID="${SIM_INFO[1]}"
+          )"
+          SIM_NAME="$(printf '%s\n' "$SIM_INFO" | sed -n '1p')"
+          SIM_ID="$(printf '%s\n' "$SIM_INFO" | sed -n '2p')"
           xcrun simctl boot \"$SIM_ID\" >/dev/null 2>&1 || true
           xcrun simctl bootstatus \"$SIM_ID\" -b
           echo "simulator=$SIM_NAME" >> "$GITHUB_OUTPUT"
@@ -172,7 +172,7 @@ jobs:
           XCODE_PATH=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
           sudo xcode-select -s "$XCODE_PATH"
           SIM_JSON="$(xcrun simctl list devices available -j)"
-          readarray -t SIM_INFO < <(SIM_JSON="$SIM_JSON" python3 - <<'PY'
+          SIM_INFO="$(SIM_JSON="$SIM_JSON" python3 - <<'PY'
           import json
           import os
 
@@ -200,9 +200,9 @@ jobs:
           print(name)
           print(udid)
           PY
-          )
-          SIM_NAME="${SIM_INFO[0]}"
-          SIM_ID="${SIM_INFO[1]}"
+          )"
+          SIM_NAME="$(printf '%s\n' "$SIM_INFO" | sed -n '1p')"
+          SIM_ID="$(printf '%s\n' "$SIM_INFO" | sed -n '2p')"
           echo "simulator=$SIM_NAME" >> "$GITHUB_OUTPUT"
           echo "simulator_id=$SIM_ID" >> "$GITHUB_OUTPUT"
 
