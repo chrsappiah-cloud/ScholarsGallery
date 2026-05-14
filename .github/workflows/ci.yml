@@ -92,8 +92,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select Xcode and find simulator
-        id: xcode
+      - name: Select Xcode
         run: |
           XCODE_PATH=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
           echo "Using: $XCODE_PATH"
@@ -102,20 +101,18 @@ jobs:
           sudo xcodebuild -runFirstLaunch 2>&1 | tail -5 || true
           echo "=== simctl runtime list ==="
           xcrun simctl runtime list 2>/dev/null || echo "(not available)"
-          echo "=== available iPhone devices ==="
-          xcrun simctl list devices available 2>/dev/null | grep -i iphone | head -10 || true
-          SIM_ID=$(python3 ci_scripts/find_simulator.py)
-          xcrun simctl boot "$SIM_ID" >/dev/null 2>&1 || true
-          xcrun simctl bootstatus "$SIM_ID" -b
-          echo "simulator_id=$SIM_ID" >> "$GITHUB_OUTPUT"
-          echo "Using simulator: $SIM_ID"
+          echo "=== xcodebuild destinations ==="
+          xcodebuild -project ScholarsGallery.xcodeproj \
+            -scheme ScholarsGallery -showdestinations 2>&1 \
+            | grep -E "(platform|name|id):" | head -20 || true
 
       - name: Build iOS app
         run: |
           xcodebuild -project ScholarsGallery.xcodeproj \
             -scheme ScholarsGallery \
             -configuration Debug \
-            -destination 'id=${{ steps.xcode.outputs.simulator_id }}' \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,name=Any iOS Simulator Device' \
             build
 
       - name: Run unit tests
@@ -123,7 +120,8 @@ jobs:
           xcodebuild -project ScholarsGallery.xcodeproj \
             -scheme ScholarsGallery \
             -configuration Debug \
-            -destination 'id=${{ steps.xcode.outputs.simulator_id }}' \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,name=Any iOS Simulator Device' \
             -only-testing:ScholarsGalleryTests \
             test
 
@@ -136,22 +134,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select latest Xcode and find simulator
-        id: xcode
+      - name: Select latest Xcode
         run: |
           XCODE_PATH=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
           sudo xcode-select -s "$XCODE_PATH"
           xcodebuild -version
           sudo xcodebuild -runFirstLaunch 2>&1 | tail -5 || true
-          SIM_ID=$(python3 ci_scripts/find_simulator.py)
-          xcrun simctl boot "$SIM_ID" >/dev/null 2>&1 || true
-          xcrun simctl bootstatus "$SIM_ID" -b
-          echo "simulator_id=$SIM_ID" >> "$GITHUB_OUTPUT"
-          echo "Using simulator: $SIM_ID"
 
       - name: Run UI tests
         run: |
-          IOS_TEST_DESTINATION='platform=iOS Simulator,id=${{ steps.xcode.outputs.simulator_id }}' \
+          IOS_TEST_DESTINATION='platform=iOS Simulator,name=Any iOS Simulator Device' \
             ./ci_scripts/run_ui_tests.sh
 
   # ── Smoke test (server endpoints) ───────────────────────────────
