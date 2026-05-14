@@ -100,42 +100,63 @@ jobs:
           sudo xcode-select -s "$XCODE_PATH"
           xcodebuild -version
 
-          SIM_JSON="$(xcrun simctl list devices available -j)"
-          SIM_INFO="$(SIM_JSON="$SIM_JSON" python3 - <<'PY'
+          SIM_INFO="$(python3 - <<'PY'
           import json
-          import os
+          import subprocess
 
-          data = json.loads(os.environ["SIM_JSON"])
+          devices = json.loads(subprocess.check_output([
+              "xcrun", "simctl", "list", "devices", "available", "-j"
+          ], text=True))
+          device_types = json.loads(subprocess.check_output([
+              "xcrun", "simctl", "list", "devicetypes", "-j"
+          ], text=True))
           candidates = []
 
-          for runtime, devices in data["devices"].items():
+          for runtime, runtime_devices in devices["devices"].items():
               if "iOS" not in runtime:
                   continue
 
               runtime_key = runtime.split(".")[-1].replace("iOS-", "")
               runtime_parts = tuple(int(part) for part in runtime_key.split("-") if part.isdigit())
-              runtime_version = ".".join(str(part) for part in runtime_parts)
+              runtime_version = ".".join(str(part) for part in runtime_parts) or runtime_key
 
-              for device in devices:
+              for device in runtime_devices:
                   if not device.get("isAvailable", True):
                       continue
                   if "iPhone" not in device.get("name", ""):
                       continue
-                  candidates.append((runtime_parts, device["name"], runtime_version))
+                  candidates.append((runtime_parts, device["name"], runtime, runtime_version))
 
           if not candidates:
               raise SystemExit("No available iPhone simulator found")
 
-          _, name, runtime_version = max(candidates)
+          _, name, runtime_identifier, runtime_version = max(candidates)
+
+          matching_device_types = [
+              item for item in device_types["devicetypes"]
+              if item.get("name") == name and "iPhone" in item.get("name", "")
+          ]
+          if not matching_device_types:
+              raise SystemExit(f"No device type found for simulator named {name}")
+
           print(name)
+          print(matching_device_types[0]["identifier"])
+          print(runtime_identifier)
           print(runtime_version)
           PY
           )"
           SIM_NAME="$(printf '%s\n' "$SIM_INFO" | sed -n '1p')"
-          SIM_OS="$(printf '%s\n' "$SIM_INFO" | sed -n '2p')"
+          SIM_DEVICE_TYPE_ID="$(printf '%s\n' "$SIM_INFO" | sed -n '2p')"
+          SIM_RUNTIME_ID="$(printf '%s\n' "$SIM_INFO" | sed -n '3p')"
+          SIM_OS="$(printf '%s\n' "$SIM_INFO" | sed -n '4p')"
+          SIM_INSTANCE_NAME="CI-${SIM_NAME// /-}-${GITHUB_RUN_ID}"
+          SIM_ID="$(xcrun simctl create "$SIM_INSTANCE_NAME" "$SIM_DEVICE_TYPE_ID" "$SIM_RUNTIME_ID")"
+          xcrun simctl boot "$SIM_ID" >/dev/null 2>&1 || true
+          xcrun simctl bootstatus "$SIM_ID" -b
           echo "simulator=$SIM_NAME" >> "$GITHUB_OUTPUT"
+          echo "simulator_id=$SIM_ID" >> "$GITHUB_OUTPUT"
           echo "simulator_os=$SIM_OS" >> "$GITHUB_OUTPUT"
-          echo "Detected simulator: $SIM_NAME (OS $SIM_OS)"
+          echo "Detected simulator: $SIM_INSTANCE_NAME ($SIM_ID, OS $SIM_OS)"
 
       - name: Build iOS app
         run: |
@@ -143,7 +164,7 @@ jobs:
             -scheme ScholarsGallery \
             -configuration Debug \
             -sdk iphonesimulator \
-            -destination 'platform=iOS Simulator,name=${{ steps.xcode.outputs.simulator }},OS=${{ steps.xcode.outputs.simulator_os }}' \
+            -destination 'id=${{ steps.xcode.outputs.simulator_id }}' \
             build
 
       - name: Run unit tests
@@ -152,7 +173,7 @@ jobs:
             -scheme ScholarsGallery \
             -configuration Debug \
             -sdk iphonesimulator \
-            -destination 'platform=iOS Simulator,name=${{ steps.xcode.outputs.simulator }},OS=${{ steps.xcode.outputs.simulator_os }}' \
+            -destination 'id=${{ steps.xcode.outputs.simulator_id }}' \
             -only-testing:ScholarsGalleryTests \
             test
 
@@ -170,45 +191,64 @@ jobs:
         run: |
           XCODE_PATH=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
           sudo xcode-select -s "$XCODE_PATH"
-          SIM_JSON="$(xcrun simctl list devices available -j)"
-          SIM_INFO="$(SIM_JSON="$SIM_JSON" python3 - <<'PY'
+          SIM_INFO="$(python3 - <<'PY'
           import json
-          import os
+          import subprocess
 
-          data = json.loads(os.environ["SIM_JSON"])
+          devices = json.loads(subprocess.check_output([
+              "xcrun", "simctl", "list", "devices", "available", "-j"
+          ], text=True))
+          device_types = json.loads(subprocess.check_output([
+              "xcrun", "simctl", "list", "devicetypes", "-j"
+          ], text=True))
           candidates = []
 
-          for runtime, devices in data["devices"].items():
+          for runtime, runtime_devices in devices["devices"].items():
               if "iOS" not in runtime:
                   continue
 
               runtime_key = runtime.split(".")[-1].replace("iOS-", "")
               runtime_parts = tuple(int(part) for part in runtime_key.split("-") if part.isdigit())
-              runtime_version = ".".join(str(part) for part in runtime_parts)
+              runtime_version = ".".join(str(part) for part in runtime_parts) or runtime_key
 
-              for device in devices:
+              for device in runtime_devices:
                   if not device.get("isAvailable", True):
                       continue
                   if "iPhone" not in device.get("name", ""):
                       continue
-                  candidates.append((runtime_parts, device["name"], runtime_version))
+                  candidates.append((runtime_parts, device["name"], runtime, runtime_version))
 
           if not candidates:
               raise SystemExit("No available iPhone simulator found")
 
-          _, name, runtime_version = max(candidates)
+          _, name, runtime_identifier, runtime_version = max(candidates)
+
+          matching_device_types = [
+              item for item in device_types["devicetypes"]
+              if item.get("name") == name and "iPhone" in item.get("name", "")
+          ]
+          if not matching_device_types:
+              raise SystemExit(f"No device type found for simulator named {name}")
+
           print(name)
+          print(matching_device_types[0]["identifier"])
+          print(runtime_identifier)
           print(runtime_version)
           PY
           )"
           SIM_NAME="$(printf '%s\n' "$SIM_INFO" | sed -n '1p')"
-          SIM_OS="$(printf '%s\n' "$SIM_INFO" | sed -n '2p')"
+          SIM_DEVICE_TYPE_ID="$(printf '%s\n' "$SIM_INFO" | sed -n '2p')"
+          SIM_RUNTIME_ID="$(printf '%s\n' "$SIM_INFO" | sed -n '3p')"
+          SIM_OS="$(printf '%s\n' "$SIM_INFO" | sed -n '4p')"
+          SIM_INSTANCE_NAME="CI-${SIM_NAME// /-}-${GITHUB_RUN_ID}"
+          SIM_ID="$(xcrun simctl create "$SIM_INSTANCE_NAME" "$SIM_DEVICE_TYPE_ID" "$SIM_RUNTIME_ID")"
           echo "simulator=$SIM_NAME" >> "$GITHUB_OUTPUT"
+          echo "simulator_id=$SIM_ID" >> "$GITHUB_OUTPUT"
           echo "simulator_os=$SIM_OS" >> "$GITHUB_OUTPUT"
 
       - name: Run UI tests
         run: |
-          IOS_TEST_DESTINATION='platform=iOS Simulator,name=${{ steps.xcode.outputs.simulator }},OS=${{ steps.xcode.outputs.simulator_os }}' \
+          IOS_TEST_DESTINATION='platform=iOS Simulator,id=${{ steps.xcode.outputs.simulator_id }}' \
             ./ci_scripts/run_ui_tests.sh
 
   # ── Smoke test (server endpoints) ───────────────────────────────
