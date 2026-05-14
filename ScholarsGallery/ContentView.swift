@@ -76,7 +76,17 @@ private struct RootView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: ICloudKeyValueSync.didReceiveExternalChangeNotification)) { _ in
-            Task { await refreshBackups() }
+            Task {
+                await refreshBackups()
+                await CloudKitSyncManager.shared.restoreIntoSwiftData(context: modelContext)
+                syncSwiftDataToStores()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .galleryCollectionDidChange)) { _ in
+            let allRecords = (try? modelContext.fetch(FetchDescriptor<PersistedCollectionRecord>())) ?? []
+            Task.detached { @Sendable [allRecords] in
+                await CloudKitSyncManager.shared.syncCollectionRecords(allRecords)
+            }
         }
     }
 
@@ -1546,6 +1556,7 @@ private struct ScholarshipHomeView: View {
 
     private var hasCoachAccess: Bool {
         paymentService.hasMonitorAccess || adminGrantedAccess
+            || ProcessInfo.processInfo.environment["MOCK_MONITOR_ACCESS"] == "1"
     }
 
     var body: some View {
@@ -1588,6 +1599,7 @@ private struct ScholarshipHomeView: View {
                             .foregroundStyle(hasCoachAccess ? GalleryTheme.accent : GalleryTheme.textSecondary)
                     }
                     .accessibilityLabel(hasCoachAccess ? "Subscription active" : "View subscription plans")
+                    .accessibilityIdentifier("subscriptionPanel.toolbarButton")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -1757,11 +1769,13 @@ private struct CoachSubscriptionPaywallView: View {
                 .font(.system(size: 64))
                 .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(GalleryTheme.accent)
+                .accessibilityIdentifier("paywall.lockIcon")
 
             VStack(spacing: 8) {
                 Text("Aged Care Monitor")
                     .font(.title2.weight(.bold))
                     .foregroundStyle(GalleryTheme.textPrimary)
+                    .accessibilityIdentifier("paywall.title")
                 Text("Access trauma-aware communication training, dignity-first dementia support, co-design frameworks, and AI-powered flashcards and lesson plans.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
@@ -1795,6 +1809,7 @@ private struct CoachSubscriptionPaywallView: View {
             }
             .buttonStyle(GalleryProminentButtonStyle())
             .padding(.horizontal, 24)
+            .accessibilityIdentifier("paywall.viewPlansButton")
 
             Spacer()
         }
@@ -2795,6 +2810,19 @@ private final class GenerationStudioViewModel: ObservableObject {
                 prompt: prompt.trimmingCharacters(in: .whitespacesAndNewlines), artistID: artistID)
             await loadRecent()
             if let art = generated {
+                let artCopy = art
+                Task.detached { @Sendable in
+                    await CloudKitSyncManager.shared.syncGeneratedArtwork(
+                        id: artCopy.id.uuidString,
+                        status: artCopy.status,
+                        imageURL: artCopy.imageURL,
+                        prompt: artCopy.prompt,
+                        provider: artCopy.provider,
+                        createdAt: artCopy.createdAt
+                    )
+                }
+            }
+            if let art = generated {
                 Task.detached { @Sendable in
                     _ = try? await GalleryAPI.generateScholarlyDescription(
                         artworkTitle: art.prompt.prefix(60).description,
@@ -2878,6 +2906,7 @@ private final class CollectionStore: ObservableObject {
                 certificateID: "CERT-\(UUID().uuidString.prefix(8))")
         }
         sync()
+        NotificationCenter.default.post(name: .galleryCollectionDidChange, object: nil)
     }
 
     func exportRawRecords() -> String { rawRecords }
@@ -2928,6 +2957,10 @@ private final class FavoritesStore: ObservableObject {
         if isFavorite(artworkID: artworkID) { favoriteArtworkIDs.remove(artworkID.uuidString) }
         else { favoriteArtworkIDs.insert(artworkID.uuidString) }
         rawIDs = favoriteArtworkIDs.sorted().joined(separator: ",")
+        let ids = favoriteArtworkIDs
+        Task.detached { @Sendable in
+            await CloudKitSyncManager.shared.syncFavorites(ids)
+        }
     }
     func exportRawIDs() -> String { rawIDs }
     func restore(rawIDs: String) { self.rawIDs = rawIDs; favoriteArtworkIDs = Set(rawIDs.split(separator: ",").map(String.init)) }
@@ -2941,6 +2974,10 @@ private final class FavoritesStore: ObservableObject {
 
 struct CollectionRecord: Codable, Hashable {
     let artworkID: String; let acquiredAt: Date; let certificateID: String
+}
+
+extension Notification.Name {
+    static let galleryCollectionDidChange = Notification.Name("gallery.collectionDidChange")
 }
 
 

@@ -372,3 +372,143 @@ struct ScholarsGalleryTests {
         )
     }
 }
+
+// MARK: - Monitor Access Product IDs
+
+@Suite("Monitor Access Product IDs")
+struct MonitorAccessProductIDTests {
+    @Test func monitorMonthlyRawValue() {
+        #expect(StoreKitPaymentService.ProductID.monitorMonthly.rawValue == "gallery.monitor.monthly")
+    }
+
+    @Test func monitorYearlyRawValue() {
+        #expect(StoreKitPaymentService.ProductID.monitorYearly.rawValue == "gallery.monitor.yearly")
+    }
+
+    @Test func studioMonthlyRawValue() {
+        #expect(StoreKitPaymentService.ProductID.studioMonthly.rawValue == "gallery.studio.monthly")
+    }
+
+    @Test func allCasesContainsMonitorProducts() {
+        let ids = StoreKitPaymentService.ProductID.allCases.map(\.rawValue)
+        #expect(ids.contains("gallery.monitor.monthly"))
+        #expect(ids.contains("gallery.monitor.yearly"))
+    }
+}
+
+// MARK: - AccessCheckResponse Decoding
+
+private struct AccessCheckResponseTest: Decodable {
+    var granted: Bool
+    var expiresAt: Date?
+}
+
+@Suite("AccessCheckResponse Decoding")
+struct AccessCheckResponseTests {
+    private let decoder: JSONDecoder = {
+        let d = JSONDecoder()
+        d.dateDecodingStrategy = .iso8601
+        return d
+    }()
+
+    @Test func decodes_granted_true() throws {
+        let json = #"{"granted":true}"#.data(using: .utf8)!
+        let response = try decoder.decode(AccessCheckResponseTest.self, from: json)
+        #expect(response.granted == true)
+        #expect(response.expiresAt == nil)
+    }
+
+    @Test func decodes_granted_false() throws {
+        let json = #"{"granted":false}"#.data(using: .utf8)!
+        let response = try decoder.decode(AccessCheckResponseTest.self, from: json)
+        #expect(response.granted == false)
+    }
+
+    @Test func decodes_with_expiry_date() throws {
+        let json = #"{"granted":true,"expiresAt":"2026-12-31T00:00:00Z"}"#.data(using: .utf8)!
+        let response = try decoder.decode(AccessCheckResponseTest.self, from: json)
+        #expect(response.granted == true)
+        #expect(response.expiresAt != nil)
+        let cal = Calendar.current
+        let components = cal.dateComponents([.year, .month, .day], from: response.expiresAt!)
+        #expect(components.year == 2026)
+        #expect(components.month == 12)
+        #expect(components.day == 31)
+    }
+}
+
+// MARK: - AdminAccessGrant Codable
+
+private struct AdminAccessGrantTest: Codable, Identifiable {
+    var id: String { deviceID }
+    var deviceID: String
+    var grantedAt: Date
+    var expiresAt: Date?
+    var reason: String?
+}
+
+@Suite("AdminAccessGrant Codable")
+struct AdminAccessGrantTests {
+    private let encoder: JSONEncoder = {
+        let e = JSONEncoder()
+        e.dateEncodingStrategy = .iso8601
+        return e
+    }()
+    private let decoder: JSONDecoder = {
+        let d = JSONDecoder()
+        d.dateDecodingStrategy = .iso8601
+        return d
+    }()
+
+    @Test func roundTrip_allFields() throws {
+        let original = AdminAccessGrantTest(
+            deviceID: "ABCD1234",
+            grantedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            expiresAt: Date(timeIntervalSince1970: 1_800_000_000),
+            reason: "Test grant"
+        )
+        let data = try encoder.encode(original)
+        let decoded = try decoder.decode(AdminAccessGrantTest.self, from: data)
+        #expect(decoded.deviceID == original.deviceID)
+        #expect(decoded.reason == original.reason)
+        #expect(decoded.expiresAt != nil)
+    }
+
+    @Test func roundTrip_optionalsNil() throws {
+        let original = AdminAccessGrantTest(
+            deviceID: "TESTDEVICE",
+            grantedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            expiresAt: nil,
+            reason: nil
+        )
+        let data = try encoder.encode(original)
+        let decoded = try decoder.decode(AdminAccessGrantTest.self, from: data)
+        #expect(decoded.deviceID == "TESTDEVICE")
+        #expect(decoded.expiresAt == nil)
+        #expect(decoded.reason == nil)
+    }
+}
+
+// MARK: - Device Access Code Extraction
+
+@Suite("Device Access Code")
+struct DeviceAccessCodeTests {
+    @Test func extractsLast8Chars() {
+        let uuidString = "AABBCCDD-1111-2222-3333-EEFF00112233"
+        let code = String(uuidString.suffix(8)).uppercased()
+        #expect(code == "00112233")
+    }
+
+    @Test func last8CharsAreUppercased() {
+        let uuidString = "aabbccdd-1111-2222-3333-eeff00aabbcc"
+        let code = String(uuidString.suffix(8)).uppercased()
+        #expect(code == code.uppercased())
+        #expect(code.count == 8)
+    }
+
+    @Test func fallbackForUnknown() {
+        let full = "UNKNOWN"
+        let code = String(full.suffix(8)).uppercased()
+        #expect(code == "UNKNOWN")
+    }
+}

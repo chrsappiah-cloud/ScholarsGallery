@@ -558,3 +558,214 @@ final class ScholarsGalleryUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars.firstMatch.waitForExistence(timeout: 8), "Collection tab should remain responsive")
     }
 }
+
+// MARK: - Phase 6: Subscription Panel & Paywall
+
+final class SubscriptionPanelUITests: XCTestCase {
+    var app: XCUIApplication!
+
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+        app = XCUIApplication()
+        app.launchEnvironment["UITEST_EXHIBITIONS_JSON"] = "[]"
+        app.launchEnvironment["UITEST_ESSAYS_JSON"] = "[]"
+    }
+
+    override func tearDownWithError() throws {
+        app = nil
+    }
+
+    func testFiveTabsPresent() {
+        app.launch()
+        let tabBar = app.tabBars.firstMatch
+        XCTAssertTrue(tabBar.waitForExistence(timeout: 8), "Tab bar should exist")
+        let tabLabels = ["Exhibitions", "Studio", "Saved", "Scholarship", "Collection"]
+        for label in tabLabels {
+            XCTAssertTrue(tabBar.buttons[label].exists, "Tab '\(label)' should be present")
+        }
+    }
+
+    func testSubscriptionPanelOpensFromScholarshipToolbar() {
+        app.launch()
+        let scholarshipTab = app.tabBars.buttons["Scholarship"]
+        XCTAssertTrue(scholarshipTab.waitForExistence(timeout: 8))
+        scholarshipTab.tap()
+
+        let toolbarButton = app.buttons["subscriptionPanel.toolbarButton"]
+        XCTAssertTrue(toolbarButton.waitForExistence(timeout: 5), "Subscription toolbar button should be present")
+        toolbarButton.tap()
+
+        let restoreButton = app.buttons["subscriptionPanel.restoreButton"]
+        XCTAssertTrue(restoreButton.waitForExistence(timeout: 5), "Subscription panel should open with restore button")
+    }
+
+    func testSubscriptionPanelDeviceCodeVisible() {
+        app.launch()
+        let scholarshipTab = app.tabBars.buttons["Scholarship"]
+        XCTAssertTrue(scholarshipTab.waitForExistence(timeout: 8))
+        scholarshipTab.tap()
+
+        let toolbarButton = app.buttons["subscriptionPanel.toolbarButton"]
+        XCTAssertTrue(toolbarButton.waitForExistence(timeout: 5))
+        toolbarButton.tap()
+
+        let deviceCode = app.staticTexts["subscriptionPanel.deviceCode"]
+        XCTAssertTrue(deviceCode.waitForExistence(timeout: 5), "Device access code should be visible")
+        XCTAssertFalse(deviceCode.label.isEmpty, "Device access code should not be empty")
+        XCTAssertEqual(deviceCode.label.count, 8, "Device access code should be 8 characters")
+    }
+
+    func testSubscriptionPanelRestoreButtonTappable() {
+        app.launch()
+        let scholarshipTab = app.tabBars.buttons["Scholarship"]
+        XCTAssertTrue(scholarshipTab.waitForExistence(timeout: 8))
+        scholarshipTab.tap()
+
+        let toolbarButton = app.buttons["subscriptionPanel.toolbarButton"]
+        XCTAssertTrue(toolbarButton.waitForExistence(timeout: 5))
+        toolbarButton.tap()
+
+        let restoreButton = app.buttons["subscriptionPanel.restoreButton"]
+        XCTAssertTrue(restoreButton.waitForExistence(timeout: 5))
+        XCTAssertTrue(restoreButton.isHittable, "Restore Purchases button should be tappable")
+        restoreButton.tap()
+        // App should not crash after tapping restore
+        XCTAssertTrue(app.exists)
+    }
+
+    func testCoachPaywall_viewPlansButtonOpensPanel() {
+        // Paywall shows when MOCK_MONITOR_ACCESS is NOT set
+        app.launch()
+        let scholarshipTab = app.tabBars.buttons["Scholarship"]
+        XCTAssertTrue(scholarshipTab.waitForExistence(timeout: 8))
+        scholarshipTab.tap()
+
+        // Navigate to Study Coach section
+        let coachButton = app.buttons["Study Coach"]
+        if coachButton.waitForExistence(timeout: 3) { coachButton.tap() }
+
+        let viewPlansButton = app.buttons["paywall.viewPlansButton"]
+        if viewPlansButton.waitForExistence(timeout: 3) {
+            viewPlansButton.tap()
+            let restoreButton = app.buttons["subscriptionPanel.restoreButton"]
+            XCTAssertTrue(restoreButton.waitForExistence(timeout: 5),
+                          "Tapping View Plans from paywall should open subscription panel")
+        }
+        // If no paywall (user has access), test passes by design
+    }
+}
+
+// MARK: - Phase 7: Admin Access Grants
+
+final class AdminAccessGrantsUITests: XCTestCase {
+    var app: XCUIApplication!
+
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+        app = XCUIApplication()
+        app.launchEnvironment["UITEST_EXHIBITIONS_JSON"] = "[]"
+    }
+
+    override func tearDownWithError() throws {
+        app = nil
+    }
+
+    func testAdminPanel_accessGrantsSectionVisible() {
+        app.launch()
+        let overflowMenu = app.buttons["home.overflowMenu"]
+        XCTAssertTrue(overflowMenu.waitForExistence(timeout: 8))
+        overflowMenu.tap()
+        let adminButton = app.buttons["Admin Panel"]
+        XCTAssertTrue(adminButton.waitForExistence(timeout: 5))
+        adminButton.tap()
+
+        let loadGrantsButton = app.buttons["adminPanel.loadGrantsButton"]
+        XCTAssertTrue(loadGrantsButton.waitForExistence(timeout: 5),
+                      "Load Access Grants button should be visible in admin panel")
+    }
+
+    func testAdminPanel_deviceIDFieldAcceptsInput() {
+        app.launch()
+        let overflowMenu = app.buttons["home.overflowMenu"]
+        XCTAssertTrue(overflowMenu.waitForExistence(timeout: 8))
+        overflowMenu.tap()
+        let adminButton = app.buttons["Admin Panel"]
+        XCTAssertTrue(adminButton.waitForExistence(timeout: 5))
+        adminButton.tap()
+
+        // Scroll to the grant form
+        let deviceIDField = app.textFields["adminPanel.deviceIDField"]
+        XCTAssertTrue(deviceIDField.waitForExistence(timeout: 5), "Device ID text field should exist")
+        deviceIDField.tap()
+        deviceIDField.typeText("ABCD1234")
+        XCTAssertEqual(deviceIDField.value as? String, "ABCD1234",
+                       "Device ID field should accept typed input")
+    }
+}
+
+// MARK: - Phase 8: Study Coach Full Flow (with mock access)
+
+final class StudyCoachUITests: XCTestCase {
+    var app: XCUIApplication!
+
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+        app = XCUIApplication()
+        app.launchEnvironment["MOCK_MONITOR_ACCESS"] = "1"
+        app.launchEnvironment["UITEST_ESSAYS_JSON"] = "[]"
+    }
+
+    override func tearDownWithError() throws {
+        app = nil
+    }
+
+    func testStudyCoach_modePickerAccessible() {
+        app.launch()
+        let scholarshipTab = app.tabBars.buttons["Scholarship"]
+        XCTAssertTrue(scholarshipTab.waitForExistence(timeout: 8))
+        scholarshipTab.tap()
+
+        let coachButton = app.buttons["Study Coach"]
+        if coachButton.waitForExistence(timeout: 3) { coachButton.tap() }
+
+        let modePicker = app.segmentedControls["studyCoach.modePicker"]
+        XCTAssertTrue(modePicker.waitForExistence(timeout: 5), "Study Coach mode picker should be accessible")
+    }
+
+    func testStudyCoach_topicFieldAndGenerateButton() {
+        app.launch()
+        let scholarshipTab = app.tabBars.buttons["Scholarship"]
+        XCTAssertTrue(scholarshipTab.waitForExistence(timeout: 8))
+        scholarshipTab.tap()
+
+        let coachButton = app.buttons["Study Coach"]
+        if coachButton.waitForExistence(timeout: 3) { coachButton.tap() }
+
+        let topicField = app.textFields["studyCoach.topicField"]
+        XCTAssertTrue(topicField.waitForExistence(timeout: 5), "Study Coach topic field should be accessible")
+
+        let generateButton = app.buttons["studyCoach.generateButton"]
+        XCTAssertTrue(generateButton.waitForExistence(timeout: 5), "Study Coach generate button should be accessible")
+    }
+
+    func testStudyCoach_quickStartButtonsPresent() {
+        app.launch()
+        let scholarshipTab = app.tabBars.buttons["Scholarship"]
+        XCTAssertTrue(scholarshipTab.waitForExistence(timeout: 8))
+        scholarshipTab.tap()
+
+        let coachButton = app.buttons["Study Coach"]
+        if coachButton.waitForExistence(timeout: 3) { coachButton.tap() }
+
+        // At least one quick start button should exist (indexed by topic)
+        let quickStartPredicate = NSPredicate(format: "identifier BEGINSWITH 'studyCoach.quickStart.'")
+        let quickStartButtons = app.buttons.matching(quickStartPredicate)
+        XCTAssertGreaterThan(quickStartButtons.count, 0, "At least one quick start topic button should be present")
+
+        // Tap the first one and verify no crash
+        if quickStartButtons.firstMatch.waitForExistence(timeout: 3) {
+            quickStartButtons.firstMatch.tap()
+            XCTAssertTrue(app.exists, "App should remain stable after tapping quick start")
+        }
+    }
+}

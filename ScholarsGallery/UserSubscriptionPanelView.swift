@@ -72,6 +72,7 @@ struct UserSubscriptionPanelView: View {
         .overlay(alignment: .topTrailing) {
             SparkleJewelOverlay().padding(10)
         }
+        .accessibilityIdentifier("subscriptionPanel.accessHeader")
     }
 
     private var adminGrantBanner: some View {
@@ -108,6 +109,7 @@ struct UserSubscriptionPanelView: View {
                 }
             }
         }
+        .accessibilityIdentifier("subscriptionPanel.plansSection")
     }
 
     private var deviceCodeSection: some View {
@@ -124,6 +126,7 @@ struct UserSubscriptionPanelView: View {
                 .textSelection(.enabled)
                 .padding(10)
                 .background(GalleryTheme.card, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .accessibilityIdentifier("subscriptionPanel.deviceCode")
         }
         .padding(14)
         .background(
@@ -143,6 +146,7 @@ struct UserSubscriptionPanelView: View {
                 .frame(maxWidth: .infinity)
         }
         .buttonStyle(GalleryProminentButtonStyle())
+        .accessibilityIdentifier("subscriptionPanel.restoreButton")
     }
 
     private var deviceAccessCode: String {
@@ -181,6 +185,7 @@ private struct PlanCard: View {
                 .buttonStyle(.bordered)
                 .tint(GalleryTheme.accent)
                 .font(.subheadline.weight(.medium))
+                .accessibilityIdentifier("subscriptionPanel.subscribeButton.\(product.id)")
             }
         }
         .padding(14)
@@ -191,5 +196,6 @@ private struct PlanCard: View {
                     .stroke(isOwned ? GalleryTheme.accent.opacity(0.4) : GalleryTheme.cardStroke, lineWidth: 1))
         )
         .galleryCardShadow()
+        .accessibilityIdentifier("subscriptionPanel.planCard.\(product.id)")
     }
 }

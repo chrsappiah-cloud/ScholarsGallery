@@ -135,6 +135,7 @@ struct AdministratorControlPanelView: View {
             }
             .buttonStyle(GalleryProminentButtonStyle())
             .disabled(isLoadingGrants || storedAdminToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .accessibilityIdentifier("adminPanel.loadGrantsButton")
 
             if let grantError {
                 Text(grantError).font(.footnote).foregroundStyle(.red)
@@ -170,6 +171,7 @@ struct AdministratorControlPanelView: View {
                             }
                             .buttonStyle(.bordered)
                             .tint(.red)
+                            .accessibilityIdentifier("adminPanel.revokeButton.\(grant.deviceID)")
                         }
                         .padding(10)
                         .background(GalleryTheme.card, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -195,10 +197,12 @@ struct AdministratorControlPanelView: View {
                     .textInputAutocapitalization(.characters)
                     .padding(10)
                     .background(GalleryTheme.card, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .accessibilityIdentifier("adminPanel.deviceIDField")
 
                 TextField("Reason (optional)", text: $newGrantReason)
                     .padding(10)
                     .background(GalleryTheme.card, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .accessibilityIdentifier("adminPanel.reasonField")
 
                 Toggle("Set expiry date", isOn: $newGrantHasExpiry)
                     .tint(GalleryTheme.accent)
@@ -216,6 +220,7 @@ struct AdministratorControlPanelView: View {
                 .buttonStyle(GalleryProminentButtonStyle())
                 .disabled(newGrantDeviceID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
                           storedAdminToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .accessibilityIdentifier("adminPanel.grantAccessButton")
             }
             .padding(14)
             .background(
@@ -382,6 +387,7 @@ struct AdministratorControlPanelView: View {
             accessGrants.insert(grant, at: 0)
             newGrantDeviceID = ""
             newGrantReason = ""
+            ICloudKeyValueSync.shared.synchronize()
         } catch {
             grantError = error.localizedDescription
         }
@@ -393,6 +399,7 @@ struct AdministratorControlPanelView: View {
         do {
             try await GalleryAccessAPI.revokeAccess(adminToken: token, deviceID: deviceID)
             accessGrants.removeAll { $0.deviceID == deviceID }
+            ICloudKeyValueSync.shared.synchronize()
         } catch {
             grantError = error.localizedDescription
         }
