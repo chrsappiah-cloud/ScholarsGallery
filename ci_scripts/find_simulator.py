@@ -1,52 +1,43 @@
 #!/usr/bin/env python3
 """
-Find an iPhone simulator UDID for xcodebuild on GitHub Actions.
+Find the best available xcodebuild simulator destination for CI.
 
-On runners with Xcode 26.x, runtimes are disk images. After
-`xcodebuild -downloadPlatform iOS` registers the platform with DVT,
-existing devices become reachable by UUID.
+Queries xcodebuild -showdestinations (the authoritative source) and picks:
+  1. An iOS Simulator with a real UUID (preferred)
+  2. A visionOS Simulator "Designed for [iPad,iPhone]" (reliable fallback —
+     always pre-registered on Xcode 26 runners even when iOS DVT is broken)
 
-Strategy: pick the highest-version available iPhone from simctl list devices.
-Prints a single UDID to stdout; exits non-zero on failure.
+Prints a single UUID to stdout; exits non-zero on failure.
 """
-import json
+import re
 import subprocess
 import sys
 
+result = subprocess.run(
+    ["xcodebuild",
+     "-project", "ScholarsGallery.xcodeproj",
+     "-scheme", "ScholarsGallery",
+     "-showdestinations"],
+    capture_output=True, text=True)
+text = result.stdout + result.stderr
+print("=== showdestinations output ===", file=sys.stderr)
+print(text, file=sys.stderr)
 
-def list_available_iphone():
-    """Return (version_tuple, name, udid) for the best available iPhone simulator."""
-    raw = subprocess.check_output(
-        ["xcrun", "simctl", "list", "devices", "available", "-j"], text=True)
-    data = json.loads(raw)
-    candidates = []
-    for runtime_key, devs in data.get("devices", {}).items():
-        # runtime_key e.g. "com.apple.CoreSimulator.SimRuntime.iOS-26-1"
-        key_lower = runtime_key.lower()
-        if "ios" not in key_lower:
-            continue
-        # Extract version digits from key
-        ver_part = runtime_key.split(".")[-1]  # e.g. "iOS-26-1"
-        digits = [x for x in ver_part.replace("iOS-", "").split("-") if x.isdigit()]
-        ver = tuple(int(x) for x in digits) if digits else (0,)
-        for d in devs:
-            if d.get("isAvailable") and "iPhone" in d.get("name", ""):
-                candidates.append((ver, d["name"], d["udid"]))
-    if not candidates:
-        return None
-    return max(candidates)
+# Strategy 1: iOS Simulator with a real UUID (not the DVT placeholder)
+for udid in re.findall(r"platform:iOS Simulator[^}]*?id:([A-F0-9a-f-]{36})", text):
+    if len(udid) == 36 and "placeholder" not in udid.lower():
+        print(f"iOS Simulator: {udid}", file=sys.stderr)
+        print(udid)
+        sys.exit(0)
 
+# Strategy 2: visionOS Designed for [iPad,iPhone] — concrete UUID, always registered
+for udid in re.findall(
+        r"platform:visionOS Simulator[^}]*?Designed for \[iPad,iPhone\][^}]*?id:([A-F0-9a-f-]{36})",
+        text):
+    if len(udid) == 36:
+        print(f"visionOS (Designed for iPad/iPhone): {udid}", file=sys.stderr)
+        print(udid)
+        sys.exit(0)
 
-try:
-    result = list_available_iphone()
-    if result is None:
-        raise SystemExit("No available iPhone simulator found in simctl")
-    ver, name, udid = result
-    print(f"Selected: {name} (iOS {'.'.join(str(v) for v in ver)}) {udid}",
-          file=sys.stderr)
-    print(udid)
-except SystemExit:
-    raise
-except Exception as e:
-    print(f"Fatal: {e}", file=sys.stderr)
-    sys.exit(1)
+print("No usable simulator destination found.", file=sys.stderr)
+sys.exit(1)

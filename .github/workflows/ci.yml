@@ -92,26 +92,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select Xcode 26.x and register iOS simulator platform
+      - name: Select Xcode 26.x and find best simulator destination
         id: xcode
         run: |
-          # Runtimes on this runner are disk images (Xcode 26 format) — only
-          # Xcode 26.x can mount them. xcodebuild -downloadPlatform iOS registers
-          # the mounted runtime with DVT so concrete device destinations appear.
+          # Use latest Xcode. iOS simulator DVT is broken (shows placeholder only),
+          # but visionOS "Designed for [iPad,iPhone]" destinations ARE registered.
+          # find_simulator.py queries -showdestinations and picks iOS (if available)
+          # or visionOS Designed-for-iPad/iPhone as a reliable fallback.
           XCODE_PATH=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
           echo "Using: $XCODE_PATH"
           sudo xcode-select -s "$XCODE_PATH"
           xcodebuild -version
           sudo xcodebuild -runFirstLaunch 2>&1 | tail -5 || true
-          echo "Registering iOS simulator platform with DVT…"
-          xcodebuild -downloadPlatform iOS 2>&1 | tail -10 || true
-          echo "=== destinations after platform registration ==="
-          xcodebuild -project ScholarsGallery.xcodeproj \
-            -scheme ScholarsGallery -showdestinations 2>&1 \
-            | grep -E "(platform|id:|name:)" | head -20 || true
           SIM_ID=$(python3 ci_scripts/find_simulator.py)
           xcrun simctl boot "$SIM_ID" >/dev/null 2>&1 || true
-          xcrun simctl bootstatus "$SIM_ID" -b
+          xcrun simctl bootstatus "$SIM_ID" -b 2>/dev/null || true
           echo "simulator_id=$SIM_ID" >> "$GITHUB_OUTPUT"
           echo "Using simulator: $SIM_ID"
 
@@ -120,7 +115,6 @@ jobs:
           xcodebuild -project ScholarsGallery.xcodeproj \
             -scheme ScholarsGallery \
             -configuration Debug \
-            -sdk iphonesimulator \
             -destination 'id=${{ steps.xcode.outputs.simulator_id }}' \
             build
 
@@ -129,7 +123,6 @@ jobs:
           xcodebuild -project ScholarsGallery.xcodeproj \
             -scheme ScholarsGallery \
             -configuration Debug \
-            -sdk iphonesimulator \
             -destination 'id=${{ steps.xcode.outputs.simulator_id }}' \
             -only-testing:ScholarsGalleryTests \
             test
@@ -143,17 +136,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select Xcode 26.x and register iOS simulator platform
+      - name: Select Xcode 26.x and find best simulator destination
         id: xcode
         run: |
           XCODE_PATH=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
           sudo xcode-select -s "$XCODE_PATH"
           xcodebuild -version
           sudo xcodebuild -runFirstLaunch 2>&1 | tail -5 || true
-          xcodebuild -downloadPlatform iOS 2>&1 | tail -10 || true
           SIM_ID=$(python3 ci_scripts/find_simulator.py)
           xcrun simctl boot "$SIM_ID" >/dev/null 2>&1 || true
-          xcrun simctl bootstatus "$SIM_ID" -b
+          xcrun simctl bootstatus "$SIM_ID" -b 2>/dev/null || true
           echo "simulator_id=$SIM_ID" >> "$GITHUB_OUTPUT"
           echo "Using simulator: $SIM_ID"
 

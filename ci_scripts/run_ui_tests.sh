@@ -65,7 +65,6 @@ xcodebuild test \
   -project "ScholarsGallery.xcodeproj" \
   -scheme "ScholarsGallery" \
   -configuration Debug \
-  -sdk iphonesimulator \
   -destination "$DEST" \
   -only-testing:ScholarsGalleryUITests \
   "${PARALLEL_ARGS[@]}"
