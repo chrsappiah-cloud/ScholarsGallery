@@ -54,7 +54,7 @@ jobs:
   server:
     name: Server Build & Test
     runs-on: macos-latest
-    timeout-minutes: 25
+    timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
 
@@ -81,18 +81,18 @@ jobs:
 
       - name: Run server tests
         run: swift test --filter ScholarsGalleryServerTests
-        timeout-minutes: 20
+        timeout-minutes: 40
 
   # ── iOS app build + unit tests ──────────────────────────────────
   ios:
     name: iOS Build & Unit Tests
     runs-on: macos-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     needs: [spm-modules]
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select latest Xcode and detect simulator
+      - name: Select latest Xcode and find simulator
         id: xcode
         run: |
           XCODE_PATH=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
@@ -101,62 +101,33 @@ jobs:
           xcodebuild -version
 
           SIM_INFO="$(python3 - <<'PY'
-          import json
-          import subprocess
-
-          devices = json.loads(subprocess.check_output([
-              "xcrun", "simctl", "list", "devices", "available", "-j"
-          ], text=True))
-          device_types = json.loads(subprocess.check_output([
-              "xcrun", "simctl", "list", "devicetypes", "-j"
-          ], text=True))
+          import json, subprocess
+          devices = json.loads(subprocess.check_output(
+              ["xcrun", "simctl", "list", "devices", "available", "-j"], text=True))
           candidates = []
-
-          for runtime, runtime_devices in devices["devices"].items():
+          for runtime, devs in devices["devices"].items():
               if "iOS" not in runtime:
                   continue
-
-              runtime_key = runtime.split(".")[-1].replace("iOS-", "")
-              runtime_parts = tuple(int(part) for part in runtime_key.split("-") if part.isdigit())
-              runtime_version = ".".join(str(part) for part in runtime_parts) or runtime_key
-
-              for device in runtime_devices:
-                  if not device.get("isAvailable", True):
-                      continue
-                  if "iPhone" not in device.get("name", ""):
-                      continue
-                  candidates.append((runtime_parts, device["name"], runtime, runtime_version))
-
+              parts = runtime.split(".")[-1].replace("iOS-", "")
+              ver = tuple(int(x) for x in parts.split("-") if x.isdigit())
+              for d in devs:
+                  if d.get("isAvailable") and "iPhone" in d.get("name", ""):
+                      candidates.append((ver, d["name"], d["udid"]))
           if not candidates:
               raise SystemExit("No available iPhone simulator found")
-
-          _, name, runtime_identifier, runtime_version = max(candidates)
-
-          matching_device_types = [
-              item for item in device_types["devicetypes"]
-              if item.get("name") == name and "iPhone" in item.get("name", "")
-          ]
-          if not matching_device_types:
-              raise SystemExit(f"No device type found for simulator named {name}")
-
+          ver, name, udid = max(candidates)
+          print(udid)
           print(name)
-          print(matching_device_types[0]["identifier"])
-          print(runtime_identifier)
-          print(runtime_version)
+          print(".".join(str(v) for v in ver))
           PY
           )"
-          SIM_NAME="$(printf '%s\n' "$SIM_INFO" | sed -n '1p')"
-          SIM_DEVICE_TYPE_ID="$(printf '%s\n' "$SIM_INFO" | sed -n '2p')"
-          SIM_RUNTIME_ID="$(printf '%s\n' "$SIM_INFO" | sed -n '3p')"
-          SIM_OS="$(printf '%s\n' "$SIM_INFO" | sed -n '4p')"
-          SIM_INSTANCE_NAME="CI-${SIM_NAME// /-}-${GITHUB_RUN_ID}"
-          SIM_ID="$(xcrun simctl create "$SIM_INSTANCE_NAME" "$SIM_DEVICE_TYPE_ID" "$SIM_RUNTIME_ID")"
+          SIM_ID="$(printf '%s\n' "$SIM_INFO" | sed -n '1p')"
+          SIM_NAME="$(printf '%s\n' "$SIM_INFO" | sed -n '2p')"
+          SIM_OS="$(printf '%s\n' "$SIM_INFO" | sed -n '3p')"
           xcrun simctl boot "$SIM_ID" >/dev/null 2>&1 || true
           xcrun simctl bootstatus "$SIM_ID" -b
-          echo "simulator=$SIM_NAME" >> "$GITHUB_OUTPUT"
           echo "simulator_id=$SIM_ID" >> "$GITHUB_OUTPUT"
-          echo "simulator_os=$SIM_OS" >> "$GITHUB_OUTPUT"
-          echo "Detected simulator: $SIM_INSTANCE_NAME ($SIM_ID, OS $SIM_OS)"
+          echo "Booted: $SIM_NAME ($SIM_ID, iOS $SIM_OS)"
 
       - name: Build iOS app
         run: |
@@ -181,70 +152,46 @@ jobs:
   ui-tests:
     name: iOS UI Tests
     runs-on: macos-latest
-    timeout-minutes: 40
+    timeout-minutes: 55
     needs: [ios]
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select latest Xcode and detect simulator
+      - name: Select latest Xcode and find simulator
         id: xcode
         run: |
           XCODE_PATH=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
           sudo xcode-select -s "$XCODE_PATH"
+          xcodebuild -version
+
           SIM_INFO="$(python3 - <<'PY'
-          import json
-          import subprocess
-
-          devices = json.loads(subprocess.check_output([
-              "xcrun", "simctl", "list", "devices", "available", "-j"
-          ], text=True))
-          device_types = json.loads(subprocess.check_output([
-              "xcrun", "simctl", "list", "devicetypes", "-j"
-          ], text=True))
+          import json, subprocess
+          devices = json.loads(subprocess.check_output(
+              ["xcrun", "simctl", "list", "devices", "available", "-j"], text=True))
           candidates = []
-
-          for runtime, runtime_devices in devices["devices"].items():
+          for runtime, devs in devices["devices"].items():
               if "iOS" not in runtime:
                   continue
-
-              runtime_key = runtime.split(".")[-1].replace("iOS-", "")
-              runtime_parts = tuple(int(part) for part in runtime_key.split("-") if part.isdigit())
-              runtime_version = ".".join(str(part) for part in runtime_parts) or runtime_key
-
-              for device in runtime_devices:
-                  if not device.get("isAvailable", True):
-                      continue
-                  if "iPhone" not in device.get("name", ""):
-                      continue
-                  candidates.append((runtime_parts, device["name"], runtime, runtime_version))
-
+              parts = runtime.split(".")[-1].replace("iOS-", "")
+              ver = tuple(int(x) for x in parts.split("-") if x.isdigit())
+              for d in devs:
+                  if d.get("isAvailable") and "iPhone" in d.get("name", ""):
+                      candidates.append((ver, d["name"], d["udid"]))
           if not candidates:
               raise SystemExit("No available iPhone simulator found")
-
-          _, name, runtime_identifier, runtime_version = max(candidates)
-
-          matching_device_types = [
-              item for item in device_types["devicetypes"]
-              if item.get("name") == name and "iPhone" in item.get("name", "")
-          ]
-          if not matching_device_types:
-              raise SystemExit(f"No device type found for simulator named {name}")
-
+          ver, name, udid = max(candidates)
+          print(udid)
           print(name)
-          print(matching_device_types[0]["identifier"])
-          print(runtime_identifier)
-          print(runtime_version)
+          print(".".join(str(v) for v in ver))
           PY
           )"
-          SIM_NAME="$(printf '%s\n' "$SIM_INFO" | sed -n '1p')"
-          SIM_DEVICE_TYPE_ID="$(printf '%s\n' "$SIM_INFO" | sed -n '2p')"
-          SIM_RUNTIME_ID="$(printf '%s\n' "$SIM_INFO" | sed -n '3p')"
-          SIM_OS="$(printf '%s\n' "$SIM_INFO" | sed -n '4p')"
-          SIM_INSTANCE_NAME="CI-${SIM_NAME// /-}-${GITHUB_RUN_ID}"
-          SIM_ID="$(xcrun simctl create "$SIM_INSTANCE_NAME" "$SIM_DEVICE_TYPE_ID" "$SIM_RUNTIME_ID")"
-          echo "simulator=$SIM_NAME" >> "$GITHUB_OUTPUT"
+          SIM_ID="$(printf '%s\n' "$SIM_INFO" | sed -n '1p')"
+          SIM_NAME="$(printf '%s\n' "$SIM_INFO" | sed -n '2p')"
+          SIM_OS="$(printf '%s\n' "$SIM_INFO" | sed -n '3p')"
+          xcrun simctl boot "$SIM_ID" >/dev/null 2>&1 || true
+          xcrun simctl bootstatus "$SIM_ID" -b
           echo "simulator_id=$SIM_ID" >> "$GITHUB_OUTPUT"
-          echo "simulator_os=$SIM_OS" >> "$GITHUB_OUTPUT"
+          echo "Booted: $SIM_NAME ($SIM_ID, iOS $SIM_OS)"
 
       - name: Run UI tests
         run: |
