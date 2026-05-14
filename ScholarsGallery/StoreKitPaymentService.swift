@@ -10,6 +10,8 @@ final class StoreKitPaymentService: ObservableObject {
         case studioMonthly = "gallery.studio.monthly"
         case studioYearly = "gallery.studio.yearly"
         case generationPack = "gallery.studio.generation.pack"
+        case monitorMonthly = "gallery.monitor.monthly"
+        case monitorYearly = "gallery.monitor.yearly"
     }
 
     @Published private(set) var products: [Product] = []
@@ -20,6 +22,12 @@ final class StoreKitPaymentService: ObservableObject {
     var hasStudioAccess: Bool {
         purchasedProductIDs.contains(ProductID.studioMonthly.rawValue) ||
         purchasedProductIDs.contains(ProductID.studioYearly.rawValue)
+    }
+
+    var hasMonitorAccess: Bool {
+        purchasedProductIDs.contains(ProductID.monitorMonthly.rawValue) ||
+        purchasedProductIDs.contains(ProductID.monitorYearly.rawValue) ||
+        hasStudioAccess
     }
 
     var hasGenerationCredits: Bool {

@@ -99,6 +99,11 @@ func configure(_ app: Application) throws {
         .appendingPathComponent("collection-store.json")
     app.collectionStore = CollectionStoreActor(fileURL: collectionStoreURL)
 
+    let accessGrantsURL = ServerPaths.accessGrantsFileURL().standardizedFileURL
+    app.accessGrantStore = AccessGrantStore(fileURL: accessGrantsURL)
+    app.logger.info("Access grant store ready (path: \(accessGrantsURL.path))")
+
     try routes(app)
     try registerCollectionRoutes(app)
+    try app.register(collection: SubscriptionRouteCollection())
 }

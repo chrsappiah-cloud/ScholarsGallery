@@ -18,6 +18,15 @@ struct AdministratorControlPanelView: View {
     @State private var isSaving = false
     @State private var errorMessage: String?
 
+    // Access grants
+    @State private var accessGrants: [AdminAccessGrant] = []
+    @State private var isLoadingGrants = false
+    @State private var newGrantDeviceID = ""
+    @State private var newGrantReason = ""
+    @State private var newGrantExpiry: Date = Calendar.current.date(byAdding: .year, value: 1, to: Date()) ?? Date()
+    @State private var newGrantHasExpiry = false
+    @State private var grantError: String?
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -85,7 +94,7 @@ struct AdministratorControlPanelView: View {
 
                     Divider()
 
-                    subscriberManagementSection
+                    accessGrantsSection
                     revenueSection
 
                     Text(String(localized: "admin.securityFootnote"))
@@ -107,38 +116,113 @@ struct AdministratorControlPanelView: View {
         }
     }
 
-    private var subscriberManagementSection: some View {
+    private var accessGrantsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Subscriber Management")
+            Text("Access Grants")
                 .font(.headline)
                 .foregroundStyle(GalleryTheme.sapphireDark)
 
-            VStack(alignment: .leading, spacing: 8) {
-                LabeledContent("Active Subscribers") {
-                    Text("—")
-                        .font(.subheadline.monospaced())
+            // Load button
+            Button {
+                Task { await loadGrants() }
+            } label: {
+                if isLoadingGrants {
+                    ProgressView().frame(maxWidth: .infinity)
+                } else {
+                    Label("Load Access Grants", systemImage: "person.badge.key")
+                        .frame(maxWidth: .infinity)
                 }
-                LabeledContent("Studio Pro Monthly") {
-                    Text("—")
-                        .font(.subheadline.monospaced())
-                }
-                LabeledContent("Studio Pro Yearly") {
-                    Text("—")
-                        .font(.subheadline.monospaced())
-                }
-                Text("Connect App Store Connect for real-time subscriber data")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
             }
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .buttonStyle(GalleryProminentButtonStyle())
+            .disabled(isLoadingGrants || storedAdminToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+            if let grantError {
+                Text(grantError).font(.footnote).foregroundStyle(.red)
+            }
+
+            // Existing grants list
+            if !accessGrants.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(accessGrants) { grant in
+                        HStack(alignment: .center, spacing: 10) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(grant.deviceID)
+                                    .font(.caption.monospaced())
+                                    .foregroundStyle(GalleryTheme.textPrimary)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                if let expiry = grant.expiresAt {
+                                    Text("Expires \(expiry.formatted(date: .abbreviated, time: .omitted))")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                } else {
+                                    Text("No expiry")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            Spacer()
+                            Button(role: .destructive) {
+                                Task { await revokeGrant(deviceID: grant.deviceID) }
+                            } label: {
+                                Image(systemName: "trash")
+                                    .font(.footnote)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(.red)
+                        }
+                        .padding(10)
+                        .background(GalleryTheme.card, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    }
+                }
+                .padding(12)
+                .background(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(GalleryTheme.card)
+                        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(GalleryTheme.cardStroke, lineWidth: 1))
+                )
+                .galleryCardShadow()
+            }
+
+            // Grant new access form
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Grant New Access")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(GalleryTheme.sapphireDark)
+
+                TextField("Device access code (8-char suffix or full UUID)", text: $newGrantDeviceID)
+                    .textInputAutocapitalization(.characters)
+                    .padding(10)
+                    .background(GalleryTheme.card, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                TextField("Reason (optional)", text: $newGrantReason)
+                    .padding(10)
+                    .background(GalleryTheme.card, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                Toggle("Set expiry date", isOn: $newGrantHasExpiry)
+                    .tint(GalleryTheme.accent)
+
+                if newGrantHasExpiry {
+                    DatePicker("Expires", selection: $newGrantExpiry, displayedComponents: .date)
+                }
+
+                Button {
+                    Task { await grantAccess() }
+                } label: {
+                    Label("Grant Access", systemImage: "checkmark.seal")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(GalleryProminentButtonStyle())
+                .disabled(newGrantDeviceID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                          storedAdminToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+            .padding(14)
             .background(
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .fill(GalleryTheme.card)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .stroke(GalleryTheme.cardStroke, lineWidth: 1)
-                    )
+                    .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(GalleryTheme.cardStroke, lineWidth: 1))
             )
             .galleryCardShadow()
         }
@@ -270,6 +354,50 @@ struct AdministratorControlPanelView: View {
         }
     }
 
+    private func loadGrants() async {
+        isLoadingGrants = true
+        grantError = nil
+        defer { isLoadingGrants = false }
+        do {
+            accessGrants = try await GalleryAccessAPI.fetchGrants(
+                adminToken: storedAdminToken.trimmingCharacters(in: .whitespacesAndNewlines)
+            )
+        } catch {
+            grantError = error.localizedDescription
+        }
+    }
+
+    private func grantAccess() async {
+        grantError = nil
+        let token = storedAdminToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        let deviceID = newGrantDeviceID.trimmingCharacters(in: .whitespacesAndNewlines)
+        let reason = newGrantReason.trimmingCharacters(in: .whitespacesAndNewlines)
+        let expiry: Date? = newGrantHasExpiry ? newGrantExpiry : nil
+        do {
+            let grant = try await GalleryAccessAPI.grantAccess(
+                adminToken: token, deviceID: deviceID,
+                expiresAt: expiry, reason: reason.isEmpty ? nil : reason
+            )
+            accessGrants.removeAll { $0.deviceID == grant.deviceID }
+            accessGrants.insert(grant, at: 0)
+            newGrantDeviceID = ""
+            newGrantReason = ""
+        } catch {
+            grantError = error.localizedDescription
+        }
+    }
+
+    private func revokeGrant(deviceID: String) async {
+        grantError = nil
+        let token = storedAdminToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        do {
+            try await GalleryAccessAPI.revokeAccess(adminToken: token, deviceID: deviceID)
+            accessGrants.removeAll { $0.deviceID == deviceID }
+        } catch {
+            grantError = error.localizedDescription
+        }
+    }
+
     private func savePolicy() async {
         isSaving = true
         errorMessage = nil
@@ -324,6 +452,63 @@ private struct AdminOverviewPayload: Decodable {
     var generationPersistence: String
     var dolaAssistantConfigured: Bool?
     var dolaAssistantProvider: String?
+}
+
+private struct AdminAccessGrant: Codable, Identifiable {
+    var id: String { deviceID }
+    var deviceID: String
+    var grantedAt: Date
+    var expiresAt: Date?
+    var reason: String?
+}
+
+private enum GalleryAccessAPI {
+    private static var decoder: JSONDecoder {
+        let d = JSONDecoder()
+        d.dateDecodingStrategy = .iso8601
+        return d
+    }
+
+    static func fetchGrants(adminToken: String) async throws -> [AdminAccessGrant] {
+        var request = URLRequest(url: GalleryAPIConfiguration.baseURL.appendingPathComponent("api/admin/access/grants"))
+        request.addValue(adminToken, forHTTPHeaderField: "X-Admin-Token")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.userAuthenticationRequired)
+        }
+        return try decoder.decode([AdminAccessGrant].self, from: data)
+    }
+
+    static func grantAccess(adminToken: String, deviceID: String, expiresAt: Date?, reason: String?) async throws -> AdminAccessGrant {
+        struct Body: Encodable {
+            var deviceID: String
+            var expiresAt: Date?
+            var reason: String?
+        }
+        var request = URLRequest(url: GalleryAPIConfiguration.baseURL.appendingPathComponent("api/admin/access/grant"))
+        request.httpMethod = "POST"
+        request.addValue(adminToken, forHTTPHeaderField: "X-Admin-Token")
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        let enc = JSONEncoder()
+        enc.dateEncodingStrategy = .iso8601
+        request.httpBody = try enc.encode(Body(deviceID: deviceID, expiresAt: expiresAt, reason: reason))
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.cannotWriteToFile)
+        }
+        return try decoder.decode(AdminAccessGrant.self, from: data)
+    }
+
+    static func revokeAccess(adminToken: String, deviceID: String) async throws {
+        let url = GalleryAPIConfiguration.baseURL.appendingPathComponent("api/admin/access/\(deviceID)")
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.addValue(adminToken, forHTTPHeaderField: "X-Admin-Token")
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw URLError(.cannotRemoveFile)
+        }
+    }
 }
 
 private enum GalleryAdminAPI {

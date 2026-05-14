@@ -1533,12 +1533,19 @@ private struct ArtworkDetailView: View {
 @MainActor
 private struct ScholarshipHomeView: View {
     @StateObject private var vm = ScholarshipViewModel()
+    @ObservedObject private var paymentService = StoreKitPaymentService.shared
+    @AppStorage("gallery.admin_granted_access") private var adminGrantedAccess = false
     @State private var selectedSection: ScholarshipSection = .coach
+    @State private var showSubscriptionPanel = false
 
     private enum ScholarshipSection: String, CaseIterable {
         case artworks = "AI Descriptions"
         case essays = "Essays"
         case coach = "Study Coach"
+    }
+
+    private var hasCoachAccess: Bool {
+        paymentService.hasMonitorAccess || adminGrantedAccess
     }
 
     var body: some View {
@@ -1561,13 +1568,27 @@ private struct ScholarshipHomeView: View {
                     case .essays:
                         essayListContent
                     case .coach:
-                        OnDeviceScholarStudyCoachView()
+                        if hasCoachAccess {
+                            OnDeviceScholarStudyCoachView()
+                        } else {
+                            CoachSubscriptionPaywallView(showPanel: $showSubscriptionPanel)
+                        }
                     }
                 }
             }
             .background(GalleryAppBackground().ignoresSafeArea())
             .navigationTitle(String(localized: "scholarship.navTitle"))
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        showSubscriptionPanel = true
+                    } label: {
+                        Image(systemName: hasCoachAccess ? "checkmark.seal.fill" : "person.crop.circle.badge.plus")
+                            .symbolRenderingMode(.hierarchical)
+                            .foregroundStyle(hasCoachAccess ? GalleryTheme.accent : GalleryTheme.textSecondary)
+                    }
+                    .accessibilityLabel(hasCoachAccess ? "Subscription active" : "View subscription plans")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         Task { await vm.load() }
@@ -1577,9 +1598,27 @@ private struct ScholarshipHomeView: View {
                     .accessibilityIdentifier("scholarship.refreshButton")
                 }
             }
-            .task { await vm.load() }
+            .sheet(isPresented: $showSubscriptionPanel) {
+                UserSubscriptionPanelView()
+            }
+            .task {
+                await vm.load()
+                await refreshAdminGrantStatus()
+            }
         }
     }
+
+    private func refreshAdminGrantStatus() async {
+        guard let deviceID = await UIDevice.current.identifierForVendor?.uuidString else { return }
+        var request = URLRequest(url: GalleryAPIConfiguration.baseURL.appendingPathComponent("api/access/check"))
+        request.addValue(deviceID, forHTTPHeaderField: "X-Device-ID")
+        guard let (data, response) = try? await AppHTTPSession.shared.data(for: request),
+              let http = response as? HTTPURLResponse, http.statusCode == 200,
+              let payload = try? JSONDecoder().decode(AccessCheckResponse.self, from: data)
+        else { return }
+        adminGrantedAccess = payload.granted
+    }
+}
 
     @ViewBuilder
     private var essayListContent: some View {
@@ -1705,6 +1744,73 @@ private struct ScholarshipDetailView: View {
         }
     }
 }
+
+// MARK: - Coach Paywall
+
+private struct CoachSubscriptionPaywallView: View {
+    @Binding var showPanel: Bool
+
+    var body: some View {
+        VStack(spacing: 24) {
+            Spacer()
+            Image(systemName: "stethoscope.circle.fill")
+                .font(.system(size: 64))
+                .symbolRenderingMode(.hierarchical)
+                .foregroundStyle(GalleryTheme.accent)
+
+            VStack(spacing: 8) {
+                Text("Aged Care Monitor")
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(GalleryTheme.textPrimary)
+                Text("Access trauma-aware communication training, dignity-first dementia support, co-design frameworks, and AI-powered flashcards and lesson plans.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 8)
+            }
+
+            VStack(spacing: 10) {
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(GalleryTheme.accent)
+                    Text("On-device AI flashcard generation")
+                }
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(GalleryTheme.accent)
+                    Text("Lesson plan streaming for workshops")
+                }
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(GalleryTheme.accent)
+                    Text("Curated equity-focused resource catalog")
+                }
+            }
+            .font(.footnote)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 24)
+
+            Button {
+                showPanel = true
+            } label: {
+                Label("View Plans", systemImage: "sparkles")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(GalleryProminentButtonStyle())
+            .padding(.horizontal, 24)
+
+            Spacer()
+        }
+        .padding()
+        .background(GalleryAppBackground().ignoresSafeArea())
+    }
+}
+
+// MARK: - Access check response (decoded from /api/access/check)
+
+private struct AccessCheckResponse: Decodable {
+    var granted: Bool
+    var expiresAt: Date?
+}
+
+// MARK: - Collector Library
 
 @MainActor
 private struct CollectorLibraryView: View {

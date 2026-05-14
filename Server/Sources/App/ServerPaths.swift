@@ -36,4 +36,12 @@ enum ServerPaths {
         }
         return serverDirectory.appendingPathComponent(raw)
     }
+
+    static func accessGrantsFileURL() -> URL {
+        let raw = Environment.get("ACCESS_GRANTS_PATH") ?? "Data/access-grants.json"
+        if raw.hasPrefix("/") {
+            return URL(fileURLWithPath: raw)
+        }
+        return serverDirectory.appendingPathComponent(raw)
+    }
 }
