@@ -95,91 +95,16 @@ jobs:
       - name: Select Xcode and find simulator
         id: xcode
         run: |
-          # Always use latest Xcode so its SDK version matches the simulator runtime
-          # on this runner. Preferring Xcode 16.x while only iOS 26.x simulators are
-          # available causes a cross-version mismatch that DVT cannot resolve.
           XCODE_PATH=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
           echo "Using: $XCODE_PATH"
           sudo xcode-select -s "$XCODE_PATH"
           xcodebuild -version
-          # Register simulator runtimes with DVT (needed for Xcode 26 decoupled model)
           sudo xcodebuild -runFirstLaunch 2>&1 | tail -5 || true
-
-          # Diagnostic
           echo "=== simctl runtime list ==="
           xcrun simctl runtime list 2>/dev/null || echo "(not available)"
           echo "=== available iPhone devices ==="
           xcrun simctl list devices available 2>/dev/null | grep -i iphone | head -10 || true
-
-          SIM_ID=$(python3 - <<'PY'
-import json, subprocess, sys
-
-# Strategy 1: pick an existing available iPhone device
-try:
-    devices = json.loads(subprocess.check_output(
-        ["xcrun", "simctl", "list", "devices", "available", "-j"], text=True))
-    candidates = []
-    for runtime, devs in devices["devices"].items():
-        if "iOS" not in runtime and "iphonesimulator" not in runtime.lower():
-            continue
-        parts = runtime.split(".")[-1].replace("iOS-", "")
-        ver = tuple(int(x) for x in parts.split("-") if x.isdigit())
-        for d in devs:
-            if d.get("isAvailable") and "iPhone" in d.get("name", ""):
-                candidates.append((ver, d["name"], d["udid"]))
-    if candidates:
-        ver, name, udid = max(candidates)
-        print(f"Strategy 1: {name} ({udid})", file=sys.stderr)
-        print(udid)
-        sys.exit(0)
-except Exception as e:
-    print(f"Strategy 1 failed: {e}", file=sys.stderr)
-
-# Strategy 2: find a Ready runtime and create a fresh device
-try:
-    rt_raw = subprocess.check_output(
-        ["xcrun", "simctl", "runtime", "list", "-j"],
-        text=True, stderr=subprocess.DEVNULL)
-    runtimes = json.loads(rt_raw)
-    if isinstance(runtimes, dict):
-        runtimes = runtimes.get("runtimes", [])
-    ready_id = None
-    for rt in runtimes:
-        name = rt.get("name", "") or rt.get("platformIdentifier", "")
-        state = (rt.get("state") or "").lower()
-        if "ios" in name.lower() and state in ("ready",):
-            ready_id = rt.get("identifier") or rt.get("runtimeIdentifier")
-            break
-    if ready_id:
-        dtypes = json.loads(subprocess.check_output(
-            ["xcrun", "simctl", "list", "devicetypes", "-j"], text=True))
-        iphone_type = None
-        for dt in dtypes.get("devicetypes", []):
-            if "iPhone 16" in dt.get("name", "") and "Pro" not in dt.get("name", "") and "Plus" not in dt.get("name", ""):
-                iphone_type = dt["identifier"]
-                break
-        if not iphone_type:
-            for dt in dtypes.get("devicetypes", []):
-                if "iPhone" in dt.get("name", ""):
-                    iphone_type = dt["identifier"]
-                    break
-        if iphone_type:
-            result = subprocess.run(
-                ["xcrun", "simctl", "create", "CI-iPhone", iphone_type, ready_id],
-                capture_output=True, text=True)
-            if result.returncode == 0:
-                udid = result.stdout.strip()
-                print(f"Strategy 2: created {udid}", file=sys.stderr)
-                print(udid)
-                sys.exit(0)
-            else:
-                print(f"Strategy 2 create error: {result.stderr}", file=sys.stderr)
-except Exception as e:
-    print(f"Strategy 2 failed: {e}", file=sys.stderr)
-
-raise SystemExit("No iOS simulator could be found or created")
-PY
-          )
+          SIM_ID=$(python3 ci_scripts/find_simulator.py)
           xcrun simctl boot "$SIM_ID" >/dev/null 2>&1 || true
           xcrun simctl bootstatus "$SIM_ID" -b
           echo "simulator_id=$SIM_ID" >> "$GITHUB_OUTPUT"
@@ -218,65 +143,7 @@ PY
           sudo xcode-select -s "$XCODE_PATH"
           xcodebuild -version
           sudo xcodebuild -runFirstLaunch 2>&1 | tail -5 || true
-
-          SIM_ID=$(python3 - <<'PY'
-import json, subprocess, sys
-
-try:
-    devices = json.loads(subprocess.check_output(
-        ["xcrun", "simctl", "list", "devices", "available", "-j"], text=True))
-    candidates = []
-    for runtime, devs in devices["devices"].items():
-        if "iOS" not in runtime and "iphonesimulator" not in runtime.lower():
-            continue
-        parts = runtime.split(".")[-1].replace("iOS-", "")
-        ver = tuple(int(x) for x in parts.split("-") if x.isdigit())
-        for d in devs:
-            if d.get("isAvailable") and "iPhone" in d.get("name", ""):
-                candidates.append((ver, d["name"], d["udid"]))
-    if candidates:
-        ver, name, udid = max(candidates)
-        print(f"Found: {name} ({udid})", file=sys.stderr)
-        print(udid)
-        sys.exit(0)
-except Exception as e:
-    print(f"Device lookup failed: {e}", file=sys.stderr)
-
-try:
-    rt_raw = subprocess.check_output(
-        ["xcrun", "simctl", "runtime", "list", "-j"],
-        text=True, stderr=subprocess.DEVNULL)
-    runtimes = json.loads(rt_raw)
-    if isinstance(runtimes, dict):
-        runtimes = runtimes.get("runtimes", [])
-    ready_id = None
-    for rt in runtimes:
-        name = rt.get("name", "") or rt.get("platformIdentifier", "")
-        state = (rt.get("state") or "").lower()
-        if "ios" in name.lower() and state in ("ready",):
-            ready_id = rt.get("identifier") or rt.get("runtimeIdentifier")
-            break
-    if ready_id:
-        dtypes = json.loads(subprocess.check_output(
-            ["xcrun", "simctl", "list", "devicetypes", "-j"], text=True))
-        iphone_type = None
-        for dt in dtypes.get("devicetypes", []):
-            if "iPhone" in dt.get("name", ""):
-                iphone_type = dt["identifier"]
-                break
-        if iphone_type:
-            result = subprocess.run(
-                ["xcrun", "simctl", "create", "CI-UI-iPhone", iphone_type, ready_id],
-                capture_output=True, text=True)
-            if result.returncode == 0:
-                print(result.stdout.strip())
-                sys.exit(0)
-except Exception as e:
-    print(f"Runtime create failed: {e}", file=sys.stderr)
-
-raise SystemExit("No iOS simulator could be found or created")
-PY
-          )
+          SIM_ID=$(python3 ci_scripts/find_simulator.py)
           xcrun simctl boot "$SIM_ID" >/dev/null 2>&1 || true
           xcrun simctl bootstatus "$SIM_ID" -b
           echo "simulator_id=$SIM_ID" >> "$GITHUB_OUTPUT"
