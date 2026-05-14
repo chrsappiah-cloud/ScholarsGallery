@@ -41,9 +41,10 @@ Adjust `ExportOptions-appstore.plist` (`method` is `app-store` for iOS App Store
 ### TestFlight automation
 
 - GitHub Actions **CD** now runs after CI on `main`, tags `v*`, and manual dispatch.
+- CD resolves a GitHub environment: manual dispatch uses the selected `staging` / `production` value, tags default to `production`, and other runs default to `staging`.
 - Unsigned release archives are always produced as artifacts.
-- When signing secrets are configured, the workflow also creates a signed archive, exports an IPA with `ci_scripts/ExportOptions-testflight.plist`, and uploads it to **TestFlight** with `xcrun altool`.
-- Required repository or environment secrets:
+- When signing secrets are configured in the selected GitHub environment, the workflow also creates a signed archive, exports an IPA with `ci_scripts/ExportOptions-testflight.plist`, and uploads it to **TestFlight** with `xcrun altool`.
+- Required GitHub **environment secrets**:
   - `APP_STORE_CONNECT_ISSUER_ID`
   - `APP_STORE_CONNECT_KEY_ID`
   - `APP_STORE_CONNECT_API_KEY_BASE64`
@@ -54,6 +55,7 @@ Adjust `ExportOptions-appstore.plist` (`method` is `app-store` for iOS App Store
   - Optional: `IOS_TEAM_ID`, `IOS_SIGNING_IDENTITY`
 
 Base64 secrets are expected to contain the raw `.p8`, `.p12`, and `.mobileprovision` files.
+If a TestFlight upload is requested and any of these secrets are missing, CD now fails immediately instead of silently skipping the upload.
 
 ## 4. Symbols and crashes
 
@@ -75,7 +77,7 @@ Release builds produce **dSYMs** for symbolicated crash reports. Ensure **Upload
 ### GitHub Actions
 
 - `.github/workflows/ci.yml` runs SwiftPM builds, server tests, iOS unit tests, UI tests, and the server smoke script on pushes and pull requests.
-- `.github/workflows/cd.yml` runs after CI, uploads release artifacts, builds the server release binary, and uploads to TestFlight when signing secrets are present.
+- `.github/workflows/cd.yml` runs after CI, uploads release artifacts, builds the server release binary, and uploads to TestFlight when the selected GitHub environment has the required signing secrets.
 
 ### Xcode Cloud
 

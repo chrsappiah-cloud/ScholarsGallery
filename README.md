@@ -114,7 +114,7 @@ make ios-test-all
 ## CI / CD
 
 - **CI:** `.github/workflows/ci.yml` runs SwiftPM builds, server tests, iOS unit tests, UI tests, and the HTTP smoke test.
-- **CD:** `.github/workflows/cd.yml` runs on `main`, tags `v*`, and manual dispatch. It always uploads release artifacts and, when App Store Connect signing secrets are configured, exports a signed IPA and uploads it to **TestFlight**.
+- **CD:** `.github/workflows/cd.yml` runs on `main`, tags `v*`, and manual dispatch. It resolves a GitHub environment (`staging` or `production`), always uploads release artifacts, and requires Apple signing secrets in that environment for a real **TestFlight** upload.
 - TestFlight export settings live in `ci_scripts/ExportOptions-testflight.plist`. App Store export settings remain in `ci_scripts/ExportOptions-appstore.plist`.
 
 ### Debugger: `mach_msg2_trap`

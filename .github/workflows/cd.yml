@@ -32,11 +32,33 @@ jobs:
     name: CI Gate
     uses: ./.github/workflows/ci.yml
 
+  resolve-environment:
+    name: Resolve deployment environment
+    runs-on: ubuntu-latest
+    outputs:
+      deploy_environment: ${{ steps.resolve.outputs.deploy_environment }}
+    steps:
+      - id: resolve
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref }}
+          INPUT_ENVIRONMENT: ${{ github.event.inputs.environment }}
+        run: |
+          if [[ "$EVENT_NAME" == "workflow_dispatch" && -n "${INPUT_ENVIRONMENT:-}" ]]; then
+            deploy_environment="$INPUT_ENVIRONMENT"
+          elif [[ "$REF_NAME" == refs/tags/v* ]]; then
+            deploy_environment="production"
+          else
+            deploy_environment="staging"
+          fi
+          echo "deploy_environment=$deploy_environment" >> "$GITHUB_OUTPUT"
+
   archive:
     name: Archive iOS App
     runs-on: macos-latest
     timeout-minutes: 45
-    needs: [ci-gate]
+    needs: [ci-gate, resolve-environment]
+    environment: ${{ needs.resolve-environment.outputs.deploy_environment }}
     env:
       APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
       APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
@@ -102,7 +124,8 @@ jobs:
           if [[ "$signing_ready" != "true" ]]; then
             echo "Missing signing secrets: ${missing[*]}"
             if [[ "$should_upload" == "true" ]]; then
-              echo "::warning::Skipping signed archive/TestFlight upload because signing secrets are not configured."
+              echo "::error::TestFlight upload requested but signing secrets are not configured in the selected GitHub environment."
+              exit 1
             fi
           fi
 
