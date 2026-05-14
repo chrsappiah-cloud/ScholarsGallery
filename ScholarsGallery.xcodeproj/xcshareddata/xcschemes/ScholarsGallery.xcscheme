@@ -40,6 +40,17 @@
                ReferencedContainer = "container:ScholarsGallery.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "5ECC2C112FA3133F001DB580"
+               BuildableName = "ScholarsGalleryUITests.xctest"
+               BlueprintName = "ScholarsGalleryUITests"
+               ReferencedContainer = "container:ScholarsGallery.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction

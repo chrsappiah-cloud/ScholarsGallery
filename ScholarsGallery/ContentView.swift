@@ -249,6 +249,16 @@ private enum GalleryTab: Int, CaseIterable {
         case .collection:  return String(localized: "tab.collection")
         }
     }
+
+    var accessibilityID: String {
+        switch self {
+        case .exhibitions: return "exhibitions"
+        case .studio:      return "studio"
+        case .saved:       return "saved"
+        case .scholarship: return "scholarship"
+        case .collection:  return "collection"
+        }
+    }
 }
 
 // MARK: - Floating Bottom Navigation
@@ -275,6 +285,7 @@ private struct FloatingNavBar: View {
                     .padding(.vertical, 10)
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("tab.\(tab.accessibilityID)")
             }
         }
         .padding(.horizontal, 8)
@@ -1630,7 +1641,6 @@ private struct ScholarshipHomeView: View {
         else { return }
         adminGrantedAccess = payload.granted
     }
-}
 
     @ViewBuilder
     private var essayListContent: some View {
