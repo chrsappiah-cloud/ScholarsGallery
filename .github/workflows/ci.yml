@@ -114,29 +114,28 @@ jobs:
 
               runtime_key = runtime.split(".")[-1].replace("iOS-", "")
               runtime_parts = tuple(int(part) for part in runtime_key.split("-") if part.isdigit())
+              runtime_version = ".".join(str(part) for part in runtime_parts)
 
               for device in devices:
                   if not device.get("isAvailable", True):
                       continue
                   if "iPhone" not in device.get("name", ""):
                       continue
-                  candidates.append((runtime_parts, device["name"], device["udid"]))
+                  candidates.append((runtime_parts, device["name"], runtime_version))
 
           if not candidates:
               raise SystemExit("No available iPhone simulator found")
 
-          _, name, udid = max(candidates)
+          _, name, runtime_version = max(candidates)
           print(name)
-          print(udid)
+          print(runtime_version)
           PY
           )"
           SIM_NAME="$(printf '%s\n' "$SIM_INFO" | sed -n '1p')"
-          SIM_ID="$(printf '%s\n' "$SIM_INFO" | sed -n '2p')"
-          xcrun simctl boot \"$SIM_ID\" >/dev/null 2>&1 || true
-          xcrun simctl bootstatus \"$SIM_ID\" -b
+          SIM_OS="$(printf '%s\n' "$SIM_INFO" | sed -n '2p')"
           echo "simulator=$SIM_NAME" >> "$GITHUB_OUTPUT"
-          echo "simulator_id=$SIM_ID" >> "$GITHUB_OUTPUT"
-          echo "Detected simulator: $SIM_NAME"
+          echo "simulator_os=$SIM_OS" >> "$GITHUB_OUTPUT"
+          echo "Detected simulator: $SIM_NAME (OS $SIM_OS)"
 
       - name: Build iOS app
         run: |
@@ -144,7 +143,7 @@ jobs:
             -scheme ScholarsGallery \
             -configuration Debug \
             -sdk iphonesimulator \
-            -destination 'platform=iOS Simulator,name=${{ steps.xcode.outputs.simulator }}' \
+            -destination 'platform=iOS Simulator,name=${{ steps.xcode.outputs.simulator }},OS=${{ steps.xcode.outputs.simulator_os }}' \
             build
 
       - name: Run unit tests
@@ -153,7 +152,7 @@ jobs:
             -scheme ScholarsGallery \
             -configuration Debug \
             -sdk iphonesimulator \
-            -destination 'platform=iOS Simulator,name=${{ steps.xcode.outputs.simulator }}' \
+            -destination 'platform=iOS Simulator,name=${{ steps.xcode.outputs.simulator }},OS=${{ steps.xcode.outputs.simulator_os }}' \
             -only-testing:ScholarsGalleryTests \
             test
 
@@ -185,30 +184,31 @@ jobs:
 
               runtime_key = runtime.split(".")[-1].replace("iOS-", "")
               runtime_parts = tuple(int(part) for part in runtime_key.split("-") if part.isdigit())
+              runtime_version = ".".join(str(part) for part in runtime_parts)
 
               for device in devices:
                   if not device.get("isAvailable", True):
                       continue
                   if "iPhone" not in device.get("name", ""):
                       continue
-                  candidates.append((runtime_parts, device["name"], device["udid"]))
+                  candidates.append((runtime_parts, device["name"], runtime_version))
 
           if not candidates:
               raise SystemExit("No available iPhone simulator found")
 
-          _, name, udid = max(candidates)
+          _, name, runtime_version = max(candidates)
           print(name)
-          print(udid)
+          print(runtime_version)
           PY
           )"
           SIM_NAME="$(printf '%s\n' "$SIM_INFO" | sed -n '1p')"
-          SIM_ID="$(printf '%s\n' "$SIM_INFO" | sed -n '2p')"
+          SIM_OS="$(printf '%s\n' "$SIM_INFO" | sed -n '2p')"
           echo "simulator=$SIM_NAME" >> "$GITHUB_OUTPUT"
-          echo "simulator_id=$SIM_ID" >> "$GITHUB_OUTPUT"
+          echo "simulator_os=$SIM_OS" >> "$GITHUB_OUTPUT"
 
       - name: Run UI tests
         run: |
-          IOS_TEST_DESTINATION='platform=iOS Simulator,id=${{ steps.xcode.outputs.simulator_id }}' \
+          IOS_TEST_DESTINATION='platform=iOS Simulator,name=${{ steps.xcode.outputs.simulator }},OS=${{ steps.xcode.outputs.simulator_os }}' \
             ./ci_scripts/run_ui_tests.sh
 
   # ── Smoke test (server endpoints) ───────────────────────────────
