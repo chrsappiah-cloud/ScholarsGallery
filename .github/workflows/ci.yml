@@ -92,17 +92,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select latest Xcode and find simulator
+      - name: Select Xcode and find simulator
         id: xcode
         run: |
-          XCODE_PATH=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          # Prefer Xcode 16.x: it ships with iOS 18.x simulator runtimes pre-registered
+          # in DVT. Xcode 26.x on CI runners has a decoupled runtime model that requires
+          # additional installation steps not yet stable on GitHub-hosted runners.
+          XCODE_PATH=$(ls -d /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1)
+          if [[ -z "$XCODE_PATH" ]]; then
+            XCODE_PATH=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          fi
           echo "Using: $XCODE_PATH"
           sudo xcode-select -s "$XCODE_PATH"
           xcodebuild -version
-
-          # Register default simulator runtimes with DVT (idempotent; needed on Xcode 26+
-          # where runtimes are decoupled from the Xcode bundle and must be registered).
-          sudo xcodebuild -runFirstLaunch 2>&1 | tail -3
 
           SIM_INFO="$(python3 - <<'PY'
           import json, subprocess

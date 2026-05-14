@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<title>ScholarsGallery — Financials</title>
+<style>
+body { font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif; font-size: 13px; line-height: 1.6; color: #1a1a1a; max-width: 800px; margin: 40px auto; padding: 0 40px; }
+h1 { font-size: 26px; color: #0a0a0a; border-bottom: 3px solid #1a73e8; padding-bottom: 8px; margin-top: 0; }
+h2 { font-size: 19px; color: #1a1a1a; border-bottom: 1px solid #e0e0e0; padding-bottom: 4px; margin-top: 36px; }
+h3 { font-size: 15px; color: #333; margin-top: 24px; }
+table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 12px; }
+th { background: #1a73e8; color: white; padding: 8px 12px; text-align: left; }
+td { padding: 7px 12px; border-bottom: 1px solid #e8e8e8; }
+tr:nth-child(even) td { background: #f8f8ff; }
+blockquote { border-left: 4px solid #1a73e8; margin: 16px 0; padding: 8px 16px; background: #f0f4ff; color: #444; font-style: italic; }
+code { background: #f4f4f4; padding: 2px 5px; border-radius: 3px; font-family: monospace; font-size: 12px; }
+pre { background: #f4f4f4; padding: 12px 16px; border-radius: 6px; overflow-x: auto; font-size: 11px; line-height: 1.5; }
+hr { border: none; border-top: 2px solid #e0e0e0; margin: 32px 0; }
+ul, ol { padding-left: 24px; }
+li { margin: 4px 0; }
+strong { color: #0a0a0a; }
+@media print { body { margin: 0; padding: 20px 30px; } }
+</style>
+</head><body>
+<h1>ScholarsGallery — Financial Projections</h1>
+<p><strong>3-Year Model | Seed Round AUD $250,000</strong>
+<em>Confidential — Australian Investment Network Proposal 1619143</em></p>
+<hr />
+<h2>Assumptions</h2>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Value</th>
+<th>Basis</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Monitor Monthly Price</td>
+<td>AUD $14.99</td>
+<td>App Store pricing (est.)</td>
+</tr>
+<tr>
+<td>Monitor Annual Price</td>
+<td>AUD $119.99</td>
+<td>~33% discount to monthly</td>
+</tr>
+<tr>
+<td>Studio Monthly Price</td>
+<td>AUD $19.99</td>
+<td>App Store pricing (est.)</td>
+</tr>
+<tr>
+<td>Studio Annual Price</td>
+<td>AUD $159.99</td>
+<td>~33% discount to monthly</td>
+</tr>
+<tr>
+<td>Generation Pack (IAP)</td>
+<td>AUD $4.99</td>
+<td>One-time credit pack</td>
+</tr>
+<tr>
+<td>App Store Commission</td>
+<td>15% (small dev)</td>
+<td>Apple Small Business Program</td>
+</tr>
+<tr>
+<td>Annual → Monthly mix</td>
+<td>40% annual / 60% monthly</td>
+<td>Conservative; annual improves Y2+</td>
+</tr>
+<tr>
+<td>Monthly churn (Monitor)</td>
+<td>6%</td>
+<td>Aged care professional context; sticky</td>
+</tr>
+<tr>
+<td>Monthly churn (Studio)</td>
+<td>8%</td>
+<td>Creative tools benchmark</td>
+</tr>
+<tr>
+<td>CAC (organic App Store)</td>
+<td>AUD $45</td>
+<td>ASO-led; no paid UA in Y1</td>
+</tr>
+<tr>
+<td>CAC (facility channel Y2+)</td>
+<td>AUD $25/user</td>
+<td>B2B bulk; lower than direct</td>
+</tr>
+<tr>
+<td>Seed investment raised</td>
+<td>AUD $250,000</td>
+<td>This raise</td>
+</tr>
+<tr>
+<td>Investment timing</td>
+<td>Month 1</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>Subscriber Growth Projections</h2>
+<h3>Monitor Subscribers (Aged Care)</h3>
+<table>
+<thead>
+<tr>
+<th>Month</th>
+<th>New Subs</th>
+<th>Churn</th>
+<th>End Subs</th>
+<th>Cumulative</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>15</td>
+<td>0</td>
+<td>15</td>
+<td>15</td>
+</tr>
+<tr>
+<td>2</td>
+<td>18</td>
+<td>1</td>
+<td>32</td>
+<td>32</td>
+</tr>
+<tr>
+<td>3</td>
+<td>22</td>
+<td>2</td>
+<td>52</td>
+<td>52</td>
+</tr>
+<tr>
+<td>4</td>
+<td>28</td>
+<td>3</td>
+<td>77</td>
+<td>77</td>
+</tr>
+<tr>
+<td>5</td>
+<td>35</td>
+<td>5</td>
+<td>107</td>
+<td>107</td>
+</tr>
+<tr>
+<td>6</td>
+<td>40</td>
+<td>6</td>
+<td>141</td>
+<td>141</td>
+</tr>
+<tr>
+<td>7</td>
+<td>45</td>
+<td>8</td>
+<td>178</td>
+<td>178</td>
+</tr>
+<tr>
+<td>8</td>
+<td>50</td>
+<td>11</td>
+<td>217</td>
+<td>217</td>
+</tr>
+<tr>
+<td>9</td>
+<td>55</td>
+<td>13</td>
+<td>259</td>
+<td>259</td>
+</tr>
+<tr>
+<td>10</td>
+<td>60</td>
+<td>16</td>
+<td>303</td>
+<td>303</td>
+</tr>
+<tr>
+<td>11</td>
+<td>65</td>
+<td>18</td>
+<td>350</td>
+<td>350</td>
+</tr>
+<tr>
+<td>12</td>
+<td>70</td>
+<td>21</td>
+<td>399</td>
+<td>399</td>
+</tr>
+<tr>
+<td><strong>Year 1 End</strong></td>
+<td></td>
+<td></td>
+<td><strong>~399</strong></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>Quarter</th>
+<th>New Subs</th>
+<th>Churn</th>
+<th>End Subs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Q1 Y2 (M13–15)</td>
+<td>280</td>
+<td>72</td>
+<td>607</td>
+</tr>
+<tr>
+<td>Q2 Y2 (M16–18)</td>
+<td>340</td>
+<td>109</td>
+<td>838</td>
+</tr>
+<tr>
+<td>Q3 Y2 (M19–21)</td>
+<td>380</td>
+<td>151</td>
+<td>1,067</td>
+</tr>
+<tr>
+<td>Q4 Y2 (M22–24)</td>
+<td>410</td>
+<td>192</td>
+<td>1,285</td>
+</tr>
+<tr>
+<td><strong>Year 2 End</strong></td>
+<td></td>
+<td></td>
+<td><strong>~1,285</strong></td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>Quarter</th>
+<th>New Subs</th>
+<th>Churn</th>
+<th>End Subs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Q1 Y3 (M25–27)</td>
+<td>500</td>
+<td>231</td>
+<td>1,554</td>
+</tr>
+<tr>
+<td>Q2 Y3 (M28–30)</td>
+<td>560</td>
+<td>280</td>
+<td>1,834</td>
+</tr>
+<tr>
+<td>Q3 Y3 (M31–33)</td>
+<td>600</td>
+<td>330</td>
+<td>2,104</td>
+</tr>
+<tr>
+<td>Q4 Y3 (M34–36)</td>
+<td>620</td>
+<td>378</td>
+<td>2,346</td>
+</tr>
+<tr>
+<td><strong>Year 3 End</strong></td>
+<td></td>
+<td></td>
+<td><strong>~2,346</strong></td>
+</tr>
+</tbody>
+</table>
+<h3>Studio Subscribers (Creative)</h3>
+<table>
+<thead>
+<tr>
+<th>Year</th>
+<th>End Subscribers</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Year 1</td>
+<td>85</td>
+</tr>
+<tr>
+<td>Year 2</td>
+<td>380</td>
+</tr>
+<tr>
+<td>Year 3</td>
+<td>920</td>
+</tr>
+</tbody>
+</table>
+<h3>Total Platform Subscribers</h3>
+<table>
+<thead>
+<tr>
+<th>Year</th>
+<th>Monitor</th>
+<th>Studio</th>
+<th>Total</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Year 1</td>
+<td>399</td>
+<td>85</td>
+<td><strong>484</strong></td>
+</tr>
+<tr>
+<td>Year 2</td>
+<td>1,285</td>
+<td>380</td>
+<td><strong>1,665</strong></td>
+</tr>
+<tr>
+<td>Year 3</td>
+<td>2,346</td>
+<td>920</td>
+<td><strong>3,266</strong></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>Revenue Model</h2>
+<h3>Year 1 Revenue Breakdown (AUD)</h3>
+<table>
+<thead>
+<tr>
+<th>Revenue Stream</th>
+<th>Subs/Units</th>
+<th>Unit Price</th>
+<th>Gross</th>
+<th>App Store Net (85%)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Monitor Monthly</td>
+<td>240 avg × 12 mo</td>
+<td>$14.99/mo</td>
+<td>$43,171</td>
+<td>$36,695</td>
+</tr>
+<tr>
+<td>Monitor Annual</td>
+<td>159 avg</td>
+<td>$119.99</td>
+<td>$19,078</td>
+<td>$16,216</td>
+</tr>
+<tr>
+<td>Studio Monthly</td>
+<td>51 avg × 12 mo</td>
+<td>$19.99/mo</td>
+<td>$12,234</td>
+<td>$10,399</td>
+</tr>
+<tr>
+<td>Studio Annual</td>
+<td>34 avg</td>
+<td>$159.99</td>
+<td>$5,440</td>
+<td>$4,624</td>
+</tr>
+<tr>
+<td>Generation Packs</td>
+<td>180 units</td>
+<td>$4.99</td>
+<td>$898</td>
+<td>$763</td>
+</tr>
+<tr>
+<td>Art Marketplace</td>
+<td>40 sales</td>
+<td>$45 avg</td>
+<td>$1,800</td>
+<td>$1,530</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td></td>
+<td></td>
+<td><strong>$82,621</strong></td>
+<td><strong>$70,227</strong></td>
+</tr>
+</tbody>
+</table>
+<h3>Year 2 Revenue Breakdown (AUD)</h3>
+<table>
+<thead>
+<tr>
+<th>Revenue Stream</th>
+<th>Subs/Units</th>
+<th>Unit Price</th>
+<th>Gross</th>
+<th>Net (85%)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Monitor Monthly</td>
+<td>770 avg × 12 mo</td>
+<td>$14.99/mo</td>
+<td>$138,508</td>
+<td>$117,732</td>
+</tr>
+<tr>
+<td>Monitor Annual</td>
+<td>515 avg</td>
+<td>$119.99</td>
+<td>$61,795</td>
+<td>$52,525</td>
+</tr>
+<tr>
+<td>Studio Monthly</td>
+<td>228 avg × 12 mo</td>
+<td>$19.99/mo</td>
+<td>$54,693</td>
+<td>$46,489</td>
+</tr>
+<tr>
+<td>Studio Annual</td>
+<td>152 avg</td>
+<td>$159.99</td>
+<td>$24,319</td>
+<td>$20,671</td>
+</tr>
+<tr>
+<td>Generation Packs</td>
+<td>820 units</td>
+<td>$4.99</td>
+<td>$4,092</td>
+<td>$3,478</td>
+</tr>
+<tr>
+<td>Art Marketplace</td>
+<td>180 sales</td>
+<td>$50 avg</td>
+<td>$9,000</td>
+<td>$7,650</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td></td>
+<td></td>
+<td><strong>$292,407</strong></td>
+<td><strong>$248,545</strong></td>
+</tr>
+</tbody>
+</table>
+<h3>Year 3 Revenue Breakdown (AUD)</h3>
+<table>
+<thead>
+<tr>
+<th>Revenue Stream</th>
+<th>Subs/Units</th>
+<th>Unit Price</th>
+<th>Gross</th>
+<th>Net (85%)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Monitor Monthly</td>
+<td>1,816 avg × 12 mo</td>
+<td>$14.99/mo</td>
+<td>$326,536</td>
+<td>$277,556</td>
+</tr>
+<tr>
+<td>Monitor Annual</td>
+<td>530 avg</td>
+<td>$119.99</td>
+<td>$63,595</td>
+<td>$54,055</td>
+</tr>
+<tr>
+<td>Studio Monthly</td>
+<td>552 avg × 12 mo</td>
+<td>$19.99/mo</td>
+<td>$132,374</td>
+<td>$112,518</td>
+</tr>
+<tr>
+<td>Studio Annual</td>
+<td>368 avg</td>
+<td>$159.99</td>
+<td>$58,876</td>
+<td>$50,045</td>
+</tr>
+<tr>
+<td>Generation Packs</td>
+<td>2,400 units</td>
+<td>$4.99</td>
+<td>$11,976</td>
+<td>$10,180</td>
+</tr>
+<tr>
+<td>Art Marketplace</td>
+<td>550 sales</td>
+<td>$60 avg</td>
+<td>$33,000</td>
+<td>$28,050</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td></td>
+<td></td>
+<td><strong>$626,357</strong></td>
+<td><strong>$532,404</strong></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>Operating Expenses</h2>
+<h3>Year 1 Operating Expenses (AUD $250K seed)</h3>
+<table>
+<thead>
+<tr>
+<th>Category</th>
+<th>Q1</th>
+<th>Q2</th>
+<th>Q3</th>
+<th>Q4</th>
+<th>Full Year</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Founder salary</td>
+<td>$18,000</td>
+<td>$18,000</td>
+<td>$18,000</td>
+<td>$18,000</td>
+<td>$72,000</td>
+</tr>
+<tr>
+<td>Content lead (hire M4)</td>
+<td>—</td>
+<td>$12,000</td>
+<td>$18,000</td>
+<td>$18,000</td>
+<td>$48,000</td>
+</tr>
+<tr>
+<td>App Store dev account</td>
+<td>$149</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td>$149</td>
+</tr>
+<tr>
+<td>API server &amp; infra</td>
+<td>$600</td>
+<td>$800</td>
+<td>$1,200</td>
+<td>$1,500</td>
+<td>$4,100</td>
+</tr>
+<tr>
+<td>ASO &amp; marketing</td>
+<td>$5,000</td>
+<td>$8,000</td>
+<td>$10,000</td>
+<td>$12,000</td>
+<td>$35,000</td>
+</tr>
+<tr>
+<td>Legal &amp; compliance</td>
+<td>$4,000</td>
+<td>$1,000</td>
+<td>$1,000</td>
+<td>$1,000</td>
+<td>$7,000</td>
+</tr>
+<tr>
+<td>Curriculum clinical review</td>
+<td>$6,000</td>
+<td>$6,000</td>
+<td>$3,000</td>
+<td>$3,000</td>
+<td>$18,000</td>
+</tr>
+<tr>
+<td>Travel &amp; partnerships</td>
+<td>$2,000</td>
+<td>$3,000</td>
+<td>$4,000</td>
+<td>$4,000</td>
+<td>$13,000</td>
+</tr>
+<tr>
+<td>Miscellaneous / buffer</td>
+<td>$1,000</td>
+<td>$1,000</td>
+<td>$1,000</td>
+<td>$1,000</td>
+<td>$4,000</td>
+</tr>
+<tr>
+<td><strong>Total OpEx</strong></td>
+<td><strong>$36,749</strong></td>
+<td><strong>$49,800</strong></td>
+<td><strong>$56,200</strong></td>
+<td><strong>$58,500</strong></td>
+<td><strong>$201,249</strong></td>
+</tr>
+</tbody>
+</table>
+<h3>Year 2 &amp; Year 3 Expenses</h3>
+<table>
+<thead>
+<tr>
+<th>Category</th>
+<th>Year 2</th>
+<th>Year 3</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Team salaries (3 FTE)</td>
+<td>$210,000</td>
+<td>$280,000</td>
+</tr>
+<tr>
+<td>Infra &amp; API</td>
+<td>$8,400</td>
+<td>$16,800</td>
+</tr>
+<tr>
+<td>Marketing &amp; partnerships</td>
+<td>$55,000</td>
+<td>$75,000</td>
+</tr>
+<tr>
+<td>Curriculum &amp; content</td>
+<td>$28,000</td>
+<td>$35,000</td>
+</tr>
+<tr>
+<td>Legal &amp; compliance</td>
+<td>$8,000</td>
+<td>$10,000</td>
+</tr>
+<tr>
+<td>Misc / travel</td>
+<td>$8,000</td>
+<td>$10,000</td>
+</tr>
+<tr>
+<td><strong>Total OpEx</strong></td>
+<td><strong>$317,400</strong></td>
+<td><strong>$426,800</strong></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>Profit &amp; Loss Summary</h2>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Year 1</th>
+<th>Year 2</th>
+<th>Year 3</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Gross Revenue</td>
+<td>$82,621</td>
+<td>$292,407</td>
+<td>$626,357</td>
+</tr>
+<tr>
+<td>App Store Commission (15%)</td>
+<td>($12,393)</td>
+<td>($43,861)</td>
+<td>($93,954)</td>
+</tr>
+<tr>
+<td><strong>Net Revenue</strong></td>
+<td><strong>$70,228</strong></td>
+<td><strong>$248,546</strong></td>
+<td><strong>$532,403</strong></td>
+</tr>
+<tr>
+<td>Operating Expenses</td>
+<td>($201,249)</td>
+<td>($317,400)</td>
+<td>($426,800)</td>
+</tr>
+<tr>
+<td><strong>EBITDA</strong></td>
+<td><strong>($131,021)</strong></td>
+<td><strong>($68,854)</strong></td>
+<td><strong>$105,603</strong></td>
+</tr>
+<tr>
+<td>Seed Investment</td>
+<td>$250,000</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td><strong>Net Cash Position (EOY)</strong></td>
+<td><strong>$118,979</strong></td>
+<td><strong>$50,125</strong></td>
+<td><strong>$155,728</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Break-even</strong>: ~Month 26 (Q2 Year 3)
+<strong>Cumulative investor capital returned</strong>: Month 30 under base case</p>
+<hr />
+<h2>Key Metrics Dashboard (Year 3)</h2>
+<table>
+<thead>
+<tr>
+<th>KPI</th>
+<th>Target</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Total Active Subscribers</td>
+<td>3,266</td>
+</tr>
+<tr>
+<td>Annual Recurring Revenue (ARR)</td>
+<td>AUD $532,403</td>
+</tr>
+<tr>
+<td>Monthly Recurring Revenue (MRR)</td>
+<td>AUD $44,367</td>
+</tr>
+<tr>
+<td>Gross Margin</td>
+<td>85%</td>
+</tr>
+<tr>
+<td>Net Revenue Margin</td>
+<td>85%</td>
+</tr>
+<tr>
+<td>Monitor Subscriber NRR</td>
+<td>94% (6% annual churn)</td>
+</tr>
+<tr>
+<td>LTV / CAC (Monitor)</td>
+<td>5.5×</td>
+</tr>
+<tr>
+<td>Avg Revenue Per User (ARPU)</td>
+<td>AUD $163/yr</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>Scenario Analysis</h2>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>Key Assumption</th>
+<th>Y3 ARR</th>
+<th>Y3 EBITDA</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Bear</strong></td>
+<td>50% lower subscriber growth</td>
+<td>$266,000</td>
+<td>($95,000)</td>
+</tr>
+<tr>
+<td><strong>Base</strong></td>
+<td>Model as above</td>
+<td>$532,000</td>
+<td>$105,600</td>
+</tr>
+<tr>
+<td><strong>Bull</strong></td>
+<td>3 facility partnerships land in Y2</td>
+<td>$1,140,000</td>
+<td>$480,000</td>
+</tr>
+</tbody>
+</table>
+<h3>Bull Case Trigger: Facility Deal (50 workers × AUD $8/mo)</h3>
+<ul>
+<li>3 deals × 50 workers = 150 additional Monitor subscribers at $8/mo</li>
+<li>Adds AUD $14,400/mo = $172,800 ARR</li>
+<li>Plus 100 individual Monitor subs organically per deal</li>
+</ul>
+<hr />
+<h2>Investment Returns Analysis</h2>
+<table>
+<thead>
+<tr>
+<th>Exit Multiple</th>
+<th>Exit Basis</th>
+<th>Implied Valuation</th>
+<th>Investor Return ($250K @ $2.5M cap)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>4× ARR (Bear Y3 exit)</td>
+<td>$266K ARR</td>
+<td>$1.06M</td>
+<td>0.4× (partial recovery)</td>
+</tr>
+<tr>
+<td>4× ARR (Base Y3 exit)</td>
+<td>$532K ARR</td>
+<td>$2.13M</td>
+<td>0.85×</td>
+</tr>
+<tr>
+<td>5× ARR (Base Y3)</td>
+<td>$532K ARR</td>
+<td>$2.66M</td>
+<td>1.06×</td>
+</tr>
+<tr>
+<td>6× ARR (Base Y3)</td>
+<td>$532K ARR</td>
+<td>$3.19M</td>
+<td>1.28×</td>
+</tr>
+<tr>
+<td>5× ARR (Bull Y3)</td>
+<td>$1.14M ARR</td>
+<td>$5.70M</td>
+<td>2.28×</td>
+</tr>
+<tr>
+<td>8× ARR (Bull Y3)</td>
+<td>$1.14M ARR</td>
+<td>$9.12M</td>
+<td>3.65×</td>
+</tr>
+</tbody>
+</table>
+<p><em>Strategic acquirers (Altura Learning, Medibank Health Solutions, BUPA Aged Care) typically pay 5–8× ARR for targeted vertical SaaS with clinical content.</em></p>
+<hr />
+<h2>Use of Proceeds (AUD $250,000)</h2>
+<table>
+<thead>
+<tr>
+<th>Category</th>
+<th>Amount</th>
+<th>%</th>
+<th>Timing</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Curriculum development (3 modules)</td>
+<td>$95,000</td>
+<td>38%</td>
+<td>M1–M9</td>
+</tr>
+<tr>
+<td>Marketing, ASO &amp; App Store launch</td>
+<td>$62,500</td>
+<td>25%</td>
+<td>M1–M12</td>
+</tr>
+<tr>
+<td>Facility partnerships &amp; BD</td>
+<td>$37,500</td>
+<td>15%</td>
+<td>M4–M12</td>
+</tr>
+<tr>
+<td>Operations, infra &amp; legal</td>
+<td>$37,500</td>
+<td>15%</td>
+<td>M1–M12</td>
+</tr>
+<tr>
+<td>Working capital reserve</td>
+<td>$17,500</td>
+<td>7%</td>
+<td>Ongoing</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td><strong>$250,000</strong></td>
+<td><strong>100%</strong></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<p><em>Projections are estimates based on market research and comparable SaaS benchmarks. Actual results may differ materially. This document is for sophisticated investors only. Not a prospectus.</em></p>
+<p><em>© 2025 ScholarsGallery. Confidential.</em></p>
+</body></html>
