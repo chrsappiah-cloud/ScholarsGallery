@@ -87,7 +87,7 @@ jobs:
   ios:
     name: iOS Build & Unit Tests
     runs-on: macos-latest
-    timeout-minutes: 40
+    timeout-minutes: 75
     needs: [spm-modules]
     steps:
       - uses: actions/checkout@v4
