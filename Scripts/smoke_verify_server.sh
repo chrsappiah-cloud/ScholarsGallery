@@ -4,13 +4,15 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-swift build --product ScholarsGalleryServer
+BUILD_PATH="${BUILD_PATH:-.build-isolated}"
+
+swift build --product ScholarsGalleryServer --build-path "$BUILD_PATH"
 
 PORT="${SMOKE_PORT:-$(($RANDOM % 20000 + 20000))}"
 export PORT
 export BIND_HOST="${SMOKE_BIND:-127.0.0.1}"
 
-swift run ScholarsGalleryServer >/tmp/scholarsgallery-smoke.log 2>&1 &
+swift run --skip-build --build-path "$BUILD_PATH" ScholarsGalleryServer >/tmp/scholarsgallery-smoke.log 2>&1 &
 PID=$!
 
 cleanup() {

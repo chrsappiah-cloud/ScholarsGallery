@@ -6,7 +6,7 @@ This document focuses on shipping the **iOS app target** (`ScholarsGallery`) fro
 
 | Area | Debug | Release |
 |------|--------|---------|
-| API base URL | `http://127.0.0.1:8080` | `https://api.scholarsgallery.app` |
+| API base URL | `http://127.0.0.1:8081` | `https://api.scholarsgallery.app` |
 | SwiftUI previews | On | Off |
 | dSYM / symbols | Limited | Full (`dwarf-with-dsym`) |
 | Swift symbol strip | No | Yes |
@@ -38,6 +38,23 @@ xcodebuild -exportArchive \
 
 Adjust `ExportOptions-appstore.plist` (`method` is `app-store` for iOS App Store IPAs, `signingStyle`, optional `teamID` / `provisioningProfiles`) to match your Apple Developer account and CI.
 
+### TestFlight automation
+
+- GitHub Actions **CD** now runs after CI on `main`, tags `v*`, and manual dispatch.
+- Unsigned release archives are always produced as artifacts.
+- When signing secrets are configured, the workflow also creates a signed archive, exports an IPA with `ci_scripts/ExportOptions-testflight.plist`, and uploads it to **TestFlight** with `xcrun altool`.
+- Required repository or environment secrets:
+  - `APP_STORE_CONNECT_ISSUER_ID`
+  - `APP_STORE_CONNECT_KEY_ID`
+  - `APP_STORE_CONNECT_API_KEY_BASE64`
+  - `BUILD_CERTIFICATE_BASE64`
+  - `P12_PASSWORD`
+  - `BUILD_PROVISION_PROFILE_BASE64`
+  - `KEYCHAIN_PASSWORD`
+  - Optional: `IOS_TEAM_ID`, `IOS_SIGNING_IDENTITY`
+
+Base64 secrets are expected to contain the raw `.p8`, `.p12`, and `.mobileprovision` files.
+
 ## 4. Symbols and crashes
 
 Release builds produce **dSYMs** for symbolicated crash reports. Ensure **Upload your app’s symbols to Apple** is enabled when distributing (Xcode Organizer default for App Store uploads matches `uploadSymbols` in the export plist).
@@ -53,7 +70,14 @@ Release builds produce **dSYMs** for symbolicated crash reports. Ensure **Upload
 - **Push**: Release uses **production** APS; ensure the App ID has Push enabled and provisioning profiles are regenerated after entitlement changes.
 - **Background modes**: `remote-notification` is declared in `Info.plist` only if you actually implement push handling.
 
-## 7. CI (Xcode Cloud)
+## 7. CI / CD
+
+### GitHub Actions
+
+- `.github/workflows/ci.yml` runs SwiftPM builds, server tests, iOS unit tests, UI tests, and the server smoke script on pushes and pull requests.
+- `.github/workflows/cd.yml` runs after CI, uploads release artifacts, builds the server release binary, and uploads to TestFlight when signing secrets are present.
+
+### Xcode Cloud
 
 - **Post-clone**: `ci_scripts/ci_post_clone.sh` resolves packages, builds **Debug** for the iOS Simulator, then builds **Release** for **generic/iOS** to catch production-only issues early.
 - Set **Release** `INFOPLIST_KEY_GENERATION_API_TOKEN` (or inject via **Environment variables** in the workflow) for any server that requires `X-Generation-Token`; never commit production secrets into the repo.

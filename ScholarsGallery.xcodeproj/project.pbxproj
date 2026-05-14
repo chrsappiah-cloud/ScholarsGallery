@@ -356,7 +356,7 @@
 				INFOPLIST_FILE = ScholarsGallery/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = ScholarsGallery;
 				INFOPLIST_KEY_DEFAULT_ARTIST_ID = "00000000-0000-0000-0000-000000000001";
-				INFOPLIST_KEY_GALLERY_API_BASE_URL = "http://127.0.0.1:8080";
+				INFOPLIST_KEY_GALLERY_API_BASE_URL = "http://127.0.0.1:8081";
 				INFOPLIST_KEY_GENERATION_API_TOKEN = "";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

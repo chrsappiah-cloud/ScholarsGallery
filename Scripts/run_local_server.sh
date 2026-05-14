@@ -18,7 +18,7 @@ else
   echo "Note: WCS promo folder not found; skipping sync (optional)."
 fi
 
-PORT="${PORT:-8080}"
+PORT="${PORT:-8081}"
 BIND_HOST="${BIND_HOST:-127.0.0.1}"
 export PORT BIND_HOST
 echo "Starting Vapor on http://${BIND_HOST}:${PORT} …"

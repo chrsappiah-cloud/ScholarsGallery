@@ -14,7 +14,7 @@ If you only open the **inner** `ScholarsGallery` app folder in Cursor, use the t
 make server
 ```
 
-Same as `./dev`: optional WCS promo sync, then `swift run ScholarsGalleryServer` on **http://127.0.0.1:8080** (override with `PORT` / `BIND_HOST`). Optional: copy **`.env.example`** to **`.env`** in the repo root; `Scripts/run_local_server.sh` sources `.env` before starting the server.
+Same as `./dev`: optional WCS promo sync, then `swift run ScholarsGalleryServer` on **http://127.0.0.1:8081** by default (override with `PORT` / `BIND_HOST`). Optional: copy **`.env.example`** to **`.env`** in the repo root; `Scripts/run_local_server.sh` sources `.env` before starting the server.
 
 ### End-to-end API surface
 
@@ -110,6 +110,12 @@ Run unit tests then UI tests:
 ```bash
 make ios-test-all
 ```
+
+## CI / CD
+
+- **CI:** `.github/workflows/ci.yml` runs SwiftPM builds, server tests, iOS unit tests, UI tests, and the HTTP smoke test.
+- **CD:** `.github/workflows/cd.yml` runs on `main`, tags `v*`, and manual dispatch. It always uploads release artifacts and, when App Store Connect signing secrets are configured, exports a signed IPA and uploads it to **TestFlight**.
+- TestFlight export settings live in `ci_scripts/ExportOptions-testflight.plist`. App Store export settings remain in `ci_scripts/ExportOptions-appstore.plist`.
 
 ### Debugger: `mach_msg2_trap`
 

@@ -16,7 +16,7 @@ func configure(_ app: Application) throws {
     app.routes.defaultMaxBodySize = "10mb"
 
     let bindHost = Environment.get("BIND_HOST") ?? "127.0.0.1"
-    let bindPort = Environment.get("PORT").flatMap(Int.init) ?? 8080
+    let bindPort = Environment.get("PORT").flatMap(Int.init) ?? 8081
     app.http.server.configuration.hostname = bindHost
     app.http.server.configuration.port = bindPort
     app.logger.info("ScholarsGalleryServer HTTP bind", metadata: [

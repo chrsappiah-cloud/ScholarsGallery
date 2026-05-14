@@ -320,5 +320,40 @@ struct ScholarsGalleryTests {
         let error = CloudBackupError.iCloudUnavailable
         #expect(error.errorDescription != nil)
     }
-}
 
+    // MARK: - Study Coach Prompt Grounding
+
+    @Test func studyCoachSuggestedResourcesMatchTraumaAwareTopic() {
+        let suggested = ScholarCoachResourceCatalog.suggested(for: "trauma-aware communication in aged care")
+
+        #expect(!suggested.isEmpty)
+        #expect(suggested.count <= 3)
+        #expect(suggested.first?.id == "trauma-aware")
+        #expect(suggested.map(\.id).contains("trauma-aware"))
+    }
+
+    @Test func studyCoachFlashcardPromptIncludesGroundingNotes() {
+        let notes = ScholarCoachResourceCatalog.suggested(for: "disability dignity in care")
+        let prompt = ScholarCoachPromptBuilder.generationPrompt(
+            topic: "disability dignity in care",
+            mode: .flashcards,
+            groundingNotes: notes
+        )
+
+        #expect(prompt.contains("Create exactly 5 flashcards"))
+        #expect(prompt.contains("Grounding notes:"))
+        #expect(prompt.contains("Center dignity, consent, and autonomy."))
+    }
+
+    @Test func studyCoachFollowUpPromptCarriesModeAndTopic() {
+        let prompt = ScholarCoachPromptBuilder.followUpPrompt(
+            question: "Adapt this for first-year nursing students",
+            topic: "trauma-aware communication",
+            mode: .lessonPlan
+        )
+
+        #expect(prompt.contains("continuing a lesson session"))
+        #expect(prompt.contains("\"trauma-aware communication\""))
+        #expect(prompt.contains("Adapt this for first-year nursing students"))
+    }
+}

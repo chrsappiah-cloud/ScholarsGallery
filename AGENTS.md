@@ -15,7 +15,7 @@
 
 ```bash
 make chmod-scripts   # if *.sh is not executable
-make server          # Vapor on http://127.0.0.1:8080 by default
+make server          # Vapor on http://127.0.0.1:8081 by default
 make smoke           # HTTP smoke test
 make test            # SwiftPM tests (run one at a time; see README if .build is locked)
 make test-isolated   # same tests, build path .build-isolated (bypasses .build lock)

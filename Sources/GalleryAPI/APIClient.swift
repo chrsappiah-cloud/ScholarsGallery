@@ -8,7 +8,7 @@ public final class APIClient: @unchecked Sendable {
     public var baseURL: URL
 
     public init(
-        baseURL: URL = URL(string: "http://127.0.0.1:8080")!,
+        baseURL: URL = URL(string: "http://127.0.0.1:8081")!,
         session: URLSession = .shared
     ) {
         self.baseURL = baseURL

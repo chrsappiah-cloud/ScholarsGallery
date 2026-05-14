@@ -9,7 +9,7 @@
 
 ## Local API Notes
 
-- Default backend URL: `http://127.0.0.1:8080` (override with **`PORT`** and **`BIND_HOST`** env vars on the server process; defaults remain `8080` / `127.0.0.1`. Use **`BIND_HOST=0.0.0.0`** when a physical device on your LAN must reach the Mac’s IP.)
+- Default backend URL: `http://127.0.0.1:8081` (override with **`PORT`** and **`BIND_HOST`** env vars on the server process; defaults remain `8081` / `127.0.0.1`. Use **`BIND_HOST=0.0.0.0`** when a physical device on your LAN must reach the Mac’s IP.)
 - Quick verify: `./Scripts/smoke_verify_server.sh` (starts Vapor on a high port, curls `/health`, exhibitions, artworks).
 - Health check: `GET /health`
 - Exhibitions: `GET /api/exhibitions`
@@ -57,7 +57,7 @@
 
 ## Environment-specific app API hosts
 
-- `Debug` builds read `GALLERY_API_BASE_URL=http://127.0.0.1:8080` from build settings.
+- `Debug` builds read `GALLERY_API_BASE_URL=http://127.0.0.1:8081` from build settings.
 - `Release` builds read `GALLERY_API_BASE_URL=https://api.scholarsgallery.app`.
 - You can override these in target build settings without changing source code.
 

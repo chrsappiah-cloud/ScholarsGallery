@@ -12,7 +12,7 @@ enum GalleryAPIConfiguration {
            let url = URL(string: configured), !configured.isEmpty {
             return url
         }
-        return URL(string: "http://127.0.0.1:8080")!
+        return URL(string: "http://127.0.0.1:8081")!
     }
 }
 
