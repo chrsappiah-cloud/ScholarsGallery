@@ -92,21 +92,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select Xcode 16.x and create simulator
+      - name: Select Xcode 26.x and register iOS simulator platform
         id: xcode
         run: |
-          # Use Xcode 16.x: its DVT uses traditional CoreSimulator device discovery.
-          # Xcode 26.x DVT on CI runners only exposes a placeholder and cannot find
-          # concrete devices even when runtimes are Ready.
-          XCODE_PATH=$(ls -d /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1)
-          if [[ -z "$XCODE_PATH" ]]; then
-            XCODE_PATH=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
-          fi
+          # Runtimes on this runner are disk images (Xcode 26 format) — only
+          # Xcode 26.x can mount them. xcodebuild -downloadPlatform iOS registers
+          # the mounted runtime with DVT so concrete device destinations appear.
+          XCODE_PATH=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
           echo "Using: $XCODE_PATH"
           sudo xcode-select -s "$XCODE_PATH"
           xcodebuild -version
-          echo "=== simctl runtime list ==="
-          xcrun simctl runtime list 2>/dev/null || echo "(not available)"
+          sudo xcodebuild -runFirstLaunch 2>&1 | tail -5 || true
+          echo "Registering iOS simulator platform with DVT…"
+          xcodebuild -downloadPlatform iOS 2>&1 | tail -10 || true
+          echo "=== destinations after platform registration ==="
+          xcodebuild -project ScholarsGallery.xcodeproj \
+            -scheme ScholarsGallery -showdestinations 2>&1 \
+            | grep -E "(platform|id:|name:)" | head -20 || true
           SIM_ID=$(python3 ci_scripts/find_simulator.py)
           xcrun simctl boot "$SIM_ID" >/dev/null 2>&1 || true
           xcrun simctl bootstatus "$SIM_ID" -b
@@ -141,15 +143,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select Xcode 16.x and create simulator
+      - name: Select Xcode 26.x and register iOS simulator platform
         id: xcode
         run: |
-          XCODE_PATH=$(ls -d /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1)
-          if [[ -z "$XCODE_PATH" ]]; then
-            XCODE_PATH=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
-          fi
+          XCODE_PATH=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
           sudo xcode-select -s "$XCODE_PATH"
           xcodebuild -version
+          sudo xcodebuild -runFirstLaunch 2>&1 | tail -5 || true
+          xcodebuild -downloadPlatform iOS 2>&1 | tail -10 || true
           SIM_ID=$(python3 ci_scripts/find_simulator.py)
           xcrun simctl boot "$SIM_ID" >/dev/null 2>&1 || true
           xcrun simctl bootstatus "$SIM_ID" -b
