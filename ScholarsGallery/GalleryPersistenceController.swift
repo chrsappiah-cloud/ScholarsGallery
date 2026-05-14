@@ -1,6 +1,5 @@
 import Foundation
 import SwiftData
-import CloudKit
 
 enum GalleryPersistence {
     static let allModels: [any PersistentModel.Type] = [
@@ -15,20 +14,22 @@ enum GalleryPersistence {
     static let schema = Schema(allModels)
 
     static func makeContainer() throws -> ModelContainer {
-        let cloudConfig = ModelConfiguration(
-            "GalleryCloud",
-            schema: schema,
-            cloudKitDatabase: .automatic
-        )
-        return try ModelContainer(for: schema, configurations: [cloudConfig])
-    }
-
-    static func makeFallbackContainer() throws -> ModelContainer {
+        // Keep SwiftData local-only. Cloud sync is handled explicitly via CloudKitSyncManager.
         let localConfig = ModelConfiguration(
             "GalleryLocal",
             schema: schema,
             cloudKitDatabase: .none
         )
         return try ModelContainer(for: schema, configurations: [localConfig])
+    }
+
+    static func makeFallbackContainer() throws -> ModelContainer {
+        let fallbackConfig = ModelConfiguration(
+            "GalleryFallback",
+            schema: schema,
+            isStoredInMemoryOnly: true,
+            cloudKitDatabase: .none
+        )
+        return try ModelContainer(for: schema, configurations: [fallbackConfig])
     }
 }
