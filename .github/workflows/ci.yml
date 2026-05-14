@@ -92,19 +92,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select Xcode
+      - name: Select Xcode 16.x and create simulator
+        id: xcode
         run: |
-          XCODE_PATH=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          # Use Xcode 16.x: its DVT uses traditional CoreSimulator device discovery.
+          # Xcode 26.x DVT on CI runners only exposes a placeholder and cannot find
+          # concrete devices even when runtimes are Ready.
+          XCODE_PATH=$(ls -d /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1)
+          if [[ -z "$XCODE_PATH" ]]; then
+            XCODE_PATH=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          fi
           echo "Using: $XCODE_PATH"
           sudo xcode-select -s "$XCODE_PATH"
           xcodebuild -version
-          sudo xcodebuild -runFirstLaunch 2>&1 | tail -5 || true
           echo "=== simctl runtime list ==="
           xcrun simctl runtime list 2>/dev/null || echo "(not available)"
-          echo "=== xcodebuild destinations ==="
-          xcodebuild -project ScholarsGallery.xcodeproj \
-            -scheme ScholarsGallery -showdestinations 2>&1 \
-            | grep -E "(platform|name|id):" | head -20 || true
+          SIM_ID=$(python3 ci_scripts/find_simulator.py)
+          xcrun simctl boot "$SIM_ID" >/dev/null 2>&1 || true
+          xcrun simctl bootstatus "$SIM_ID" -b
+          echo "simulator_id=$SIM_ID" >> "$GITHUB_OUTPUT"
+          echo "Using simulator: $SIM_ID"
 
       - name: Build iOS app
         run: |
@@ -112,7 +119,7 @@ jobs:
             -scheme ScholarsGallery \
             -configuration Debug \
             -sdk iphonesimulator \
-            -destination 'platform=iOS Simulator,name=Any iOS Simulator Device' \
+            -destination 'id=${{ steps.xcode.outputs.simulator_id }}' \
             build
 
       - name: Run unit tests
@@ -121,7 +128,7 @@ jobs:
             -scheme ScholarsGallery \
             -configuration Debug \
             -sdk iphonesimulator \
-            -destination 'platform=iOS Simulator,name=Any iOS Simulator Device' \
+            -destination 'id=${{ steps.xcode.outputs.simulator_id }}' \
             -only-testing:ScholarsGalleryTests \
             test
 
@@ -134,16 +141,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select latest Xcode
+      - name: Select Xcode 16.x and create simulator
+        id: xcode
         run: |
-          XCODE_PATH=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          XCODE_PATH=$(ls -d /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1)
+          if [[ -z "$XCODE_PATH" ]]; then
+            XCODE_PATH=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          fi
           sudo xcode-select -s "$XCODE_PATH"
           xcodebuild -version
-          sudo xcodebuild -runFirstLaunch 2>&1 | tail -5 || true
+          SIM_ID=$(python3 ci_scripts/find_simulator.py)
+          xcrun simctl boot "$SIM_ID" >/dev/null 2>&1 || true
+          xcrun simctl bootstatus "$SIM_ID" -b
+          echo "simulator_id=$SIM_ID" >> "$GITHUB_OUTPUT"
+          echo "Using simulator: $SIM_ID"
 
       - name: Run UI tests
         run: |
-          IOS_TEST_DESTINATION='platform=iOS Simulator,name=Any iOS Simulator Device' \
+          IOS_TEST_DESTINATION='platform=iOS Simulator,id=${{ steps.xcode.outputs.simulator_id }}' \
             ./ci_scripts/run_ui_tests.sh
 
   # ── Smoke test (server endpoints) ───────────────────────────────
