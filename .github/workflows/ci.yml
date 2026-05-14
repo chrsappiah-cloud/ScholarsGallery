@@ -100,6 +100,10 @@ jobs:
           sudo xcode-select -s "$XCODE_PATH"
           xcodebuild -version
 
+          # Register default simulator runtimes with DVT (idempotent; needed on Xcode 26+
+          # where runtimes are decoupled from the Xcode bundle and must be registered).
+          sudo xcodebuild -runFirstLaunch 2>&1 | tail -3
+
           SIM_INFO="$(python3 - <<'PY'
           import json, subprocess
           devices = json.loads(subprocess.check_output(
@@ -163,6 +167,7 @@ jobs:
           XCODE_PATH=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
           sudo xcode-select -s "$XCODE_PATH"
           xcodebuild -version
+          sudo xcodebuild -runFirstLaunch 2>&1 | tail -3
 
           SIM_INFO="$(python3 - <<'PY'
           import json, subprocess
