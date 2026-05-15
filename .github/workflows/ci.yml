@@ -127,12 +127,42 @@ jobs:
             -only-testing:ScholarsGalleryTests \
             test
 
+  # ── AIFinance Trading Lab (Xcode project: unit + UI tests) ─────
+  aifinance-lab:
+    name: AIFinance Trading Lab Tests
+    runs-on: macos-latest
+    timeout-minutes: 35
+    needs: [spm-modules]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode 26.x and find iOS Simulator for AIFinance
+        id: xcode
+        run: |
+          XCODE_PATH=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -1)
+          echo "Using: $XCODE_PATH"
+          sudo xcode-select -s "$XCODE_PATH"
+          xcodebuild -version
+          sudo xcodebuild -runFirstLaunch 2>&1 | tail -5 || true
+          SIM_ID=$(python3 ci_scripts/find_simulator_aifinance.py)
+          xcrun simctl boot "$SIM_ID" >/dev/null 2>&1 || true
+          xcrun simctl bootstatus "$SIM_ID" -b 2>/dev/null || true
+          echo "simulator_id=$SIM_ID" >> "$GITHUB_OUTPUT"
+          echo "Using simulator: $SIM_ID"
+
+      - name: Run AIFinanceTradingLab tests
+        run: |
+          xcodebuild test \
+            -project AIFinanceTradingLab/AIFinanceTradingLab.xcodeproj \
+            -scheme AIFinanceTradingLab \
+            -destination "platform=iOS Simulator,id=${{ steps.xcode.outputs.simulator_id }}"
+
   # ── iOS UI tests ────────────────────────────────────────────────
   ui-tests:
     name: iOS UI Tests
     runs-on: macos-latest
     timeout-minutes: 55
-    needs: [ios]
+    needs: [ios, aifinance-lab]
     steps:
       - uses: actions/checkout@v4
 

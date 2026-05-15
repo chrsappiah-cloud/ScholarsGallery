@@ -1,0 +1,109 @@
+version: "3.9"
+
+x-service-defaults: &service-defaults
+  build:
+    context: .
+    dockerfile: Dockerfile
+  env_file: .env
+  restart: unless-stopped
+
+services:
+  # ── Infrastructure ────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: aifinance
+      POSTGRES_USER: aifinance
+      POSTGRES_PASSWORD: aifinance
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  # ── API Gateway ───────────────────────────────────────────────────────────
+  gateway:
+    <<: *service-defaults
+    command: sh -c "cd /app/gateway-service && uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+    ports:
+      - "8000:8000"
+    depends_on:
+      - market-data
+      - ai-research
+      - portfolio
+      - risk
+      - brokerage
+      - blockchain
+      - wallet
+      - compliance
+      - social-intel
+
+  # ── Microservices ─────────────────────────────────────────────────────────
+  market-data:
+    <<: *service-defaults
+    command: sh -c "cd /app/market-data-service && uvicorn main:app --host 0.0.0.0 --port 8101 --reload"
+    ports:
+      - "8101:8101"
+
+  ai-research:
+    <<: *service-defaults
+    command: sh -c "cd /app/ai-research-service && uvicorn main:app --host 0.0.0.0 --port 8102 --reload"
+    ports:
+      - "8102:8102"
+
+  portfolio:
+    <<: *service-defaults
+    command: sh -c "cd /app/portfolio-service && uvicorn main:app --host 0.0.0.0 --port 8103 --reload"
+    ports:
+      - "8103:8103"
+
+  risk:
+    <<: *service-defaults
+    command: sh -c "cd /app/risk-service && uvicorn main:app --host 0.0.0.0 --port 8104 --reload"
+    ports:
+      - "8104:8104"
+
+  brokerage:
+    <<: *service-defaults
+    command: sh -c "cd /app/brokerage-service && uvicorn main:app --host 0.0.0.0 --port 8105 --reload"
+    ports:
+      - "8105:8105"
+    depends_on:
+      - postgres
+
+  blockchain:
+    <<: *service-defaults
+    command: sh -c "cd /app/blockchain-service && uvicorn main:app --host 0.0.0.0 --port 8106 --reload"
+    ports:
+      - "8106:8106"
+
+  wallet:
+    <<: *service-defaults
+    command: sh -c "cd /app/wallet-service && uvicorn main:app --host 0.0.0.0 --port 8107 --reload"
+    ports:
+      - "8107:8107"
+
+  compliance:
+    <<: *service-defaults
+    command: sh -c "cd /app/compliance-service && uvicorn main:app --host 0.0.0.0 --port 8108 --reload"
+    ports:
+      - "8108:8108"
+
+  social-intel:
+    <<: *service-defaults
+    command: sh -c "cd /app/social-intel-service && uvicorn main:app --host 0.0.0.0 --port 8110 --reload"
+    ports:
+      - "8110:8110"
+
+  reporting:
+    <<: *service-defaults
+    command: sh -c "cd /app/reporting-service && uvicorn main:app --host 0.0.0.0 --port 8109 --reload"
+    ports:
+      - "8109:8109"
+
+volumes:
+  postgres_data:

@@ -3,6 +3,9 @@
 .build/
 .build-isolated/
 .build-fresh/
+build/
+SourcePackages/
+Server/Public/uploads/
 .env
 .DS_Store
 xcuserdata/
