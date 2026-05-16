@@ -279,6 +279,7 @@
 			buildConfigurationList = 438A68193411BB9935D6F94B /* Build configuration list for PBXNativeTarget "AIFinanceTradingLabUITests" */;
 			buildPhases = (
 				2859A2A3914F77450138F32B /* Sources */,
+				360EF2117B11A6E73844E25A /* Copy lib_TestingInterop into XCTest runner (Simulator) */,
 			);
 			buildRules = (
 			);
@@ -389,6 +390,28 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		360EF2117B11A6E73844E25A /* Copy lib_TestingInterop into XCTest runner (Simulator) */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Copy lib_TestingInterop into XCTest runner (Simulator)";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -euo pipefail\nif [ \"${PLATFORM_NAME:-}\" != \"iphonesimulator\" ]; then\n  exit 0\nfi\nSRC=\"${PLATFORM_DIR}/Developer/usr/lib/lib_TestingInterop.dylib\"\nRUNNER=\"${BUILT_PRODUCTS_DIR}/${XCTRUNNER_PRODUCT_NAME}\"\nDST=\"${RUNNER}/usr/lib\"\nif [ ! -d \"${RUNNER}\" ]; then\n  echo \"warning: XCTest runner not at ${RUNNER}; skipping lib_TestingInterop copy\"\n  exit 0\nfi\nif [ ! -f \"${SRC}\" ]; then\n  echo \"error: missing ${SRC}\" >&2\n  exit 1\nfi\nmkdir -p \"${DST}\"\ncp -f \"${SRC}\" \"${DST}/\"\n/usr/bin/codesign --force --sign - --timestamp=none \"${DST}/lib_TestingInterop.dylib\" 2>/dev/null || true\n/usr/bin/codesign --force --sign - --timestamp=none \"${RUNNER}\" 2>/dev/null || true\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		2859A2A3914F77450138F32B /* Sources */ = {

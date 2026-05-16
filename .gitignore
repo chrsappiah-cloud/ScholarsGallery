@@ -3,6 +3,11 @@
 .build/
 .build-isolated/
 .build-fresh/
+.build-ci-verify/
+.build-server-ci/
+.build-testflight-prep/
+.build-tfprep2/
+.build-unit-all/
 build/
 SourcePackages/
 Server/Public/uploads/

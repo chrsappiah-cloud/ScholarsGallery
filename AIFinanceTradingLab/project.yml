@@ -87,6 +87,33 @@ targets:
     settings:
       GENERATE_INFOPLIST_FILE: YES
       PRODUCT_BUNDLE_IDENTIFIER: com.scholarslab.AIFinanceTradingLabUITests
+    # Xcode embeds Testing.framework in the UI-test runner; it loads @rpath/lib_TestingInterop.dylib
+    # from …/UITests-Runner.app/usr/lib (see Testing.framework otool). That path is not populated by
+    # default, so Simulator launches abort with DYLD “Library missing”. Copy the platform dylib here
+    # for iphonesimulator only (device UI tests are uncommon; revisit if needed).
+    postBuildScripts:
+      - name: Copy lib_TestingInterop into XCTest runner (Simulator)
+        basedOnDependencyAnalysis: false
+        script: |
+          set -euo pipefail
+          if [ "${PLATFORM_NAME:-}" != "iphonesimulator" ]; then
+            exit 0
+          fi
+          SRC="${PLATFORM_DIR}/Developer/usr/lib/lib_TestingInterop.dylib"
+          RUNNER="${BUILT_PRODUCTS_DIR}/${XCTRUNNER_PRODUCT_NAME}"
+          DST="${RUNNER}/usr/lib"
+          if [ ! -d "${RUNNER}" ]; then
+            echo "warning: XCTest runner not at ${RUNNER}; skipping lib_TestingInterop copy"
+            exit 0
+          fi
+          if [ ! -f "${SRC}" ]; then
+            echo "error: missing ${SRC}" >&2
+            exit 1
+          fi
+          mkdir -p "${DST}"
+          cp -f "${SRC}" "${DST}/"
+          /usr/bin/codesign --force --sign - --timestamp=none "${DST}/lib_TestingInterop.dylib" 2>/dev/null || true
+          /usr/bin/codesign --force --sign - --timestamp=none "${RUNNER}" 2>/dev/null || true
 
 # Explicit scheme so ⌘U / `xcodebuild test` runs the Swift Testing bundle.
 schemes:

@@ -2,18 +2,53 @@
 """
 Find the best available xcodebuild simulator destination for CI.
 
-Queries xcodebuild -showdestinations (the authoritative source) and picks:
-  1. An iOS Simulator with a real UUID (preferred)
-  2. The visionOS Simulator "Designed for [iPad,iPhone]" with the HIGHEST OS
-     version (reliable fallback — always pre-registered on Xcode 26 runners).
-     Picking the highest OS avoids deployment-target mismatches when the app
-     targets iOS/visionOS 26.x.
+Queries `xcodebuild -showdestinations` first, then falls back in order:
+  1. An iOS Simulator with a real UUID (not the DVT placeholder).
+  2. `xcrun simctl list devices available -j` — first available iPhone on the
+     newest iOS runtime (GitHub runners often omit concrete sims from
+     `-showdestinations`).
+  3. The visionOS Simulator "Designed for [iPad,iPhone]" with the highest OS
+     version (last resort). Picking the highest OS avoids deployment-target
+     mismatches when the app targets iOS/visionOS 26.x.
 
 Prints a single UUID to stdout; exits non-zero on failure.
 """
+import json
 import re
 import subprocess
 import sys
+from typing import Optional
+
+
+def simctl_first_iphone_udid() -> Optional[str]:
+    """Return UDID of an available iPhone simulator, preferring newest iOS runtime."""
+    try:
+        out = subprocess.check_output(
+            ["xcrun", "simctl", "list", "devices", "available", "-j"],
+            text=True,
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError):
+        return None
+    try:
+        data = json.loads(out)
+    except json.JSONDecodeError:
+        return None
+    devices = data.get("devices") or {}
+    runtimes = sorted(
+        [k for k in devices if "iOS" in k and "SimRuntime" in k],
+        reverse=True,
+    )
+    for rt in runtimes:
+        for d in devices[rt]:
+            if not d.get("isAvailable"):
+                continue
+            name = d.get("name") or ""
+            udid = d.get("udid")
+            if udid and "iPhone" in name:
+                print(f"simctl fallback ({rt} / {name}): {udid}", file=sys.stderr)
+                return str(udid)
+    return None
+
 
 result = subprocess.run(
     ["xcodebuild",
@@ -40,7 +75,12 @@ for block in blocks:
             print(udid)
             sys.exit(0)
 
-# Strategy 2: visionOS Designed for [iPad,iPhone] — pick highest OS version
+udid = simctl_first_iphone_udid()
+if udid:
+    print(udid)
+    sys.exit(0)
+
+# Strategy 3: visionOS Designed for [iPad,iPhone] — pick highest OS version
 # to avoid deployment-target mismatch (visionOS 2.x can't run iOS 26.x targets)
 best_udid = None
 best_os_key = (-1,)
