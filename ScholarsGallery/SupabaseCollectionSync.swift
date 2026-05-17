@@ -14,9 +14,7 @@ final class SupabaseCollectionSync {
         guard let raw = Bundle.main.object(forInfoDictionaryKey: "SUPABASE_URL") as? String,
               !raw.isEmpty,
               let url = URL(string: raw) else {
-            return GalleryAPIConfiguration.baseURL.host == "127.0.0.1"
-                ? nil
-                : nil
+            return GalleryAPIConfiguration.isLocalDevelopment ? nil : nil
         }
         return url
     }

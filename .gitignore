@@ -15,4 +15,6 @@ Server/Public/uploads/
 .DS_Store
 xcuserdata/
 *.xcuserstate
+ci_scripts/__pycache__/
+Server/Data/generated-artworks.json
 DerivedData/

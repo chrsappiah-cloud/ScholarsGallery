@@ -496,6 +496,9 @@ private struct ImmersiveHomeView: View {
                 .foregroundStyle(GalleryTheme.textSecondary)
         }
         .frame(maxWidth: .infinity, minHeight: 300)
+        .accessibilityElement(children: .ignore)
+        .accessibilityIdentifier("home.emptyState")
+        .accessibilityLabel(String(localized: "home.noExhibitionsAvailable"))
     }
 }
 
@@ -585,6 +588,9 @@ private struct CinematicExhibitionCard: View {
         }
         .padding(14)
         .glassCard(cornerRadius: 18)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(exhibition.title). \(exhibition.subtitle)")
+        .accessibilityIdentifier("home.exhibitionCard.\(exhibition.id.uuidString)")
     }
 }
 
@@ -1435,14 +1441,32 @@ private final class ExhibitionListViewModel: ObservableObject {
     @Published var isLoading = false
     private let api: GalleryAPIClientProtocol
 
-    init(api: GalleryAPIClientProtocol) { self.api = api }
+    init(api: GalleryAPIClientProtocol) {
+        self.api = api
+        if ProcessInfo.processInfo.environment["UITEST_FORCE_EMPTY_EXHIBITIONS"] == "1" {
+            exhibitions = []
+            isLoading = false
+        }
+    }
     convenience init() { self.init(api: GalleryAPIClient.live) }
 
     func load() async {
+        if ProcessInfo.processInfo.environment["UITEST_FORCE_EMPTY_EXHIBITIONS"] == "1" {
+            exhibitions = []
+            errorMessage = nil
+            isLoading = false
+            return
+        }
         if let json = ProcessInfo.processInfo.environment["UITEST_EXHIBITIONS_JSON"],
-           let data = json.data(using: .utf8),
-           let decoded = try? JSONDecoder().decode([Exhibition].self, from: data) {
-            exhibitions = decoded; isLoading = false; return
+           let data = json.data(using: .utf8) {
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .secondsSince1970
+            if let decoded = try? decoder.decode([Exhibition].self, from: data) {
+                exhibitions = decoded
+                errorMessage = nil
+                isLoading = false
+                return
+            }
         }
         isLoading = true
         defer { isLoading = false }
@@ -1556,7 +1580,15 @@ private struct ScholarshipHomeView: View {
     @StateObject private var vm = ScholarshipViewModel()
     @ObservedObject private var paymentService = StoreKitPaymentService.shared
     @AppStorage("gallery.admin_granted_access") private var adminGrantedAccess = false
-    @State private var selectedSection: ScholarshipSection = .coach
+    @State private var selectedSection: ScholarshipSection = {
+        switch ProcessInfo.processInfo.environment["UITEST_SCHOLARSHIP_SECTION"] {
+        case "essays": return .essays
+        case "artworks": return .artworks
+        default:
+            if ProcessInfo.processInfo.environment["UITEST_ESSAYS_JSON"] != nil { return .essays }
+            return .coach
+        }
+    }()
     @State private var showSubscriptionPanel = false
 
     private enum ScholarshipSection: String, CaseIterable {
@@ -1582,6 +1614,7 @@ private struct ScholarshipHomeView: View {
                 .padding(.horizontal)
                 .padding(.top, 8)
                 .padding(.bottom, 4)
+                .accessibilityIdentifier("scholarship.sectionPicker")
 
                 Group {
                     switch selectedSection {
@@ -1890,6 +1923,7 @@ private struct CollectorLibraryView: View {
                         } label: {
                             Label(String(localized: "collection.refresh"), systemImage: "arrow.clockwise")
                         }
+                        .accessibilityIdentifier("collection.refreshButton")
                     } label: {
                         Image(systemName: "plus.circle")
                     }
@@ -2465,6 +2499,10 @@ private struct GenerationStudioView: View {
     @State private var showPaywall = false
 
     private var isPaywallEnforced: Bool {
+        if ProcessInfo.processInfo.environment["MOCK_STUDIO_ACCESS"] == "1"
+            || GenerationStudioViewModel.isUITestGenerateMode {
+            return false
+        }
         let checkoutEnabled = galleryBackendMeta.meta?.effectiveCheckoutEnabled ?? true
         return checkoutEnabled && !paymentService.hasStudioAccess
     }
@@ -2550,8 +2588,10 @@ private struct GenerationStudioView: View {
                     .buttonStyle(GalleryProminentButtonStyle())
                     .disabled(
                         vm.isGenerating
-                            || vm.prompt.trimmingCharacters(in: .whitespacesAndNewlines).count < 12
-                            || !(galleryBackendMeta.meta?.effectiveGenerationEnabled ?? true)
+                            || (!GenerationStudioViewModel.isUITestGenerateMode
+                                && vm.prompt.trimmingCharacters(in: .whitespacesAndNewlines).count < 12)
+                            || (!GenerationStudioViewModel.isUITestGenerateMode
+                                && !(galleryBackendMeta.meta?.effectiveGenerationEnabled ?? true))
                     )
 
                     if let error = vm.errorMessage {
@@ -2787,7 +2827,13 @@ private struct StudioPaywallSheet: View {
 }
 @MainActor
 private final class GenerationStudioViewModel: ObservableObject {
-    @Published var prompt = String(localized: "studio.defaultPrompt")
+    @Published var prompt: String = {
+        if let injected = ProcessInfo.processInfo.environment["UITEST_STUDIO_PROMPT"],
+           !injected.isEmpty {
+            return injected
+        }
+        return String(localized: "studio.defaultPrompt")
+    }()
     @Published var generated: GeneratedArtwork?
     @Published var recentGenerations: [GeneratedArtwork] = []
     @Published var errorMessage: String?
@@ -2798,6 +2844,11 @@ private final class GenerationStudioViewModel: ObservableObject {
            let id = UUID(uuidString: raw) { return id }
         return UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
     }()
+
+    static var isUITestGenerateMode: Bool {
+        let mode = ProcessInfo.processInfo.environment["UITEST_GENERATE_MODE"] ?? ""
+        return !mode.isEmpty
+    }
 
     private static var uiTestGenerateMode: String? { ProcessInfo.processInfo.environment["UITEST_GENERATE_MODE"] }
     private static var uiTestRecentJSON: String? { ProcessInfo.processInfo.environment["UITEST_RECENT_GENERATIONS_JSON"] }

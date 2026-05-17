@@ -124,6 +124,7 @@
 				5ECC2BF32FA3133D001DB580 /* Sources */,
 				5ECC2BF42FA3133D001DB580 /* Frameworks */,
 				5ECC2BF52FA3133D001DB580 /* Resources */,
+				B00000012FA3133D001DB580 /* Inject LAN API host */,
 			);
 			buildRules = (
 			);
@@ -172,6 +173,7 @@
 				5ECC2C0E2FA3133F001DB580 /* Sources */,
 				5ECC2C0F2FA3133F001DB580 /* Frameworks */,
 				5ECC2C102FA3133F001DB580 /* Resources */,
+				B00000022FA3133D001DB580 /* Inject LAN host for UI tests */,
 			);
 			buildRules = (
 			);
@@ -304,6 +306,47 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		B00000022FA3133D001DB580 /* Inject LAN host for UI tests */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Inject LAN host for UI tests";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/zsh;
+			shellScript = "if [[ \"${PLATFORM_NAME}\" != \"iphoneos\" ]]; then exit 0; fi\nLAN_IP=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || true)\nif [[ -z \"$LAN_IP\" ]]; then exit 0; fi\nRES_DIR=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\"\nmkdir -p \"$RES_DIR\"\nprintf '%s' \"$LAN_IP\" >\"${RES_DIR}/gallery-lan-host.txt\"\necho \"UITests GALLERY_API_LAN_HOST=${LAN_IP}\"\n";
+		};
+		B00000012FA3133D001DB580 /* Inject LAN API host */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Inject LAN API host";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/zsh;
+			shellScript = "if [[ \"${PLATFORM_NAME}\" != \"iphoneos\" ]]; then exit 0; fi\nLAN_IP=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || true)\nif [[ -z \"$LAN_IP\" ]]; then exit 0; fi\nPLIST=\"${BUILT_PRODUCTS_DIR}/${WRAPPER_NAME}/Info.plist\"\nif [[ -f \"$PLIST\" ]]; then\n  /usr/libexec/PlistBuddy -c \"Set :GALLERY_API_LAN_HOST ${LAN_IP}\" \"$PLIST\" 2>/dev/null || /usr/libexec/PlistBuddy -c \"Add :GALLERY_API_LAN_HOST string ${LAN_IP}\" \"$PLIST\"\nfi\nRES_DIR=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\"\nmkdir -p \"$RES_DIR\"\nprintf '%s' \"$LAN_IP\" >\"${RES_DIR}/gallery-lan-host.txt\"\necho \"Injected GALLERY_API_LAN_HOST=${LAN_IP}\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		5ECC2BF32FA3133D001DB580 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -352,6 +395,9 @@
 				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = TM2WG7HH96;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GALLERY_API_BASE_URL = "http://127.0.0.1:8081";
+				GALLERY_API_LAN_HOST = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ScholarsGallery/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = ScholarsGallery;
@@ -392,6 +438,9 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = TM2WG7HH96;
 				ENABLE_PREVIEWS = NO;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GALLERY_API_BASE_URL = "https://api.scholarsgallery.app";
+				GALLERY_API_LAN_HOST = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ScholarsGallery/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = ScholarsGallery;
@@ -594,6 +643,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = TM2WG7HH96;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = wcs.ScholarsGalleryUITests;
@@ -614,6 +664,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = TM2WG7HH96;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = wcs.ScholarsGalleryUITests;

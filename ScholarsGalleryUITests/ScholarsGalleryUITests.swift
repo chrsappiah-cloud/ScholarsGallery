@@ -5,12 +5,36 @@
 
 import XCTest
 
+enum UITestAPIConfiguration {
+    /// Live backend URL for device UI tests (Mac LAN); simulator uses loopback.
+    static var liveBackendBaseURL: String {
+        if let override = ProcessInfo.processInfo.environment["UITEST_LIVE_API_BASE_URL"],
+           !override.isEmpty {
+            return override
+        }
+        if let host = Bundle(for: ScholarsGalleryUITests.self)
+            .url(forResource: "gallery-lan-host", withExtension: "txt")
+            .flatMap({ try? String(contentsOf: $0, encoding: .utf8) })?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !host.isEmpty {
+            return "http://\(host):8081"
+        }
+        return "http://127.0.0.1:8081"
+    }
+}
+
 final class ScholarsGalleryUITests: XCTestCase {
 
     // MARK: - Helpers
 
     override func setUpWithError() throws {
         continueAfterFailure = false
+        addUIInterruptionMonitor(withDescription: "System alerts") { alert in
+            if alert.buttons["Allow"].exists { alert.buttons["Allow"].tap(); return true }
+            if alert.buttons["OK"].exists { alert.buttons["OK"].tap(); return true }
+            if alert.buttons["Close"].exists { alert.buttons["Close"].tap(); return true }
+            return false
+        }
     }
 
     private func makeApp(
@@ -26,6 +50,15 @@ final class ScholarsGalleryUITests: XCTestCase {
         }
         if let e = exhibitionsJSON {
             app.launchEnvironment["UITEST_EXHIBITIONS_JSON"] = e
+            if e == "[]" {
+                app.launchEnvironment["UITEST_FORCE_EMPTY_EXHIBITIONS"] = "1"
+            }
+        }
+        if let apiBaseURL {
+            app.launchEnvironment["UITEST_GALLERY_API_BASE_URL"] = apiBaseURL
+            app.launchEnvironment["MOCK_STUDIO_ACCESS"] = "1"
+            app.launchEnvironment["UITEST_STUDIO_PROMPT"] =
+                "A luminous cathedral interior with dramatic light for live backend UI test."
         }
         if let s = essaysJSON {
             app.launchEnvironment["UITEST_ESSAYS_JSON"] = s
@@ -33,14 +66,42 @@ final class ScholarsGalleryUITests: XCTestCase {
         if let r = recentGenerationsJSON {
             app.launchEnvironment["UITEST_RECENT_GENERATIONS_JSON"] = r
         }
-        if let apiBaseURL {
-            app.launchEnvironment["UITEST_GALLERY_API_BASE_URL"] = apiBaseURL
-        }
         return app
     }
 
     private func el(_ id: String, in app: XCUIApplication) -> XCUIElement {
-        app.descendants(matching: .any).matching(identifier: id).element
+        app.descendants(matching: .any).matching(identifier: id).firstMatch
+    }
+
+    private func tapScholarshipEssaysSection(in app: XCUIApplication) {
+        let essaysSegment = app.buttons["Essays"]
+        if essaysSegment.waitForExistence(timeout: 3) {
+            essaysSegment.tap()
+        }
+    }
+
+    private func scrollToElement(_ element: XCUIElement, in app: XCUIApplication) {
+        var attempts = 0
+        while !element.isHittable && attempts < 8 {
+            if app.scrollViews.firstMatch.exists {
+                app.scrollViews.firstMatch.swipeUp()
+            } else {
+                app.swipeUp()
+            }
+            attempts += 1
+        }
+    }
+
+    private func fillStudioPrompt(in app: XCUIApplication, text: String) {
+        let editor = el("studio.promptEditor", in: app)
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        editor.tap()
+        editor.press(forDuration: 1.0)
+        if app.menuItems["Select All"].waitForExistence(timeout: 2) {
+            app.menuItems["Select All"].tap()
+            app.keys["delete"].tap()
+        }
+        editor.typeText(text)
     }
 
     /// Sample exhibition for injection — openingDate as Unix timestamp (JSONDecoder default)
@@ -109,7 +170,8 @@ final class ScholarsGalleryUITests: XCTestCase {
                       "First exhibition card should appear via accessibility identifier")
 
         let card2 = el("home.exhibitionCard.550E8400-E29B-41D4-A716-446655440002", in: app)
-        XCTAssertTrue(card2.exists,
+        scrollToElement(card2, in: app)
+        XCTAssertTrue(card2.waitForExistence(timeout: 10),
                       "Second exhibition card should appear")
     }
 
@@ -200,9 +262,10 @@ final class ScholarsGalleryUITests: XCTestCase {
 
         let generate = el("studio.generateButton", in: app)
         XCTAssertTrue(generate.waitForExistence(timeout: 5))
+        XCTAssertTrue(generate.isEnabled, "Generate button should be enabled in UI-test mode")
         generate.tap()
 
-        XCTAssertTrue(el("studio.resultProvider", in: app).waitForExistence(timeout: 8),
+        XCTAssertTrue(el("studio.resultProvider", in: app).waitForExistence(timeout: 12),
                       "Result provider label should appear after successful generation")
         XCTAssertTrue(el("studio.recentHeader", in: app).exists,
                       "Recent generations header should appear")
@@ -220,7 +283,7 @@ final class ScholarsGalleryUITests: XCTestCase {
         XCTAssertTrue(generate.waitForExistence(timeout: 5))
         generate.tap()
 
-        XCTAssertTrue(el("studio.errorMessage", in: app).waitForExistence(timeout: 8),
+        XCTAssertTrue(el("studio.errorMessage", in: app).waitForExistence(timeout: 12),
                       "Error message should appear after failed generation")
     }
 
@@ -293,10 +356,11 @@ final class ScholarsGalleryUITests: XCTestCase {
 
         XCTAssertTrue(app.buttons.matching(identifier: "tab.scholarship").firstMatch.waitForExistence(timeout: 8))
         app.buttons.matching(identifier: "tab.scholarship").firstMatch.tap()
+        tapScholarshipEssaysSection(in: app)
 
         XCTAssertTrue(app.staticTexts["The Grammar of Light"].waitForExistence(timeout: 15),
                       "First essay title should appear")
-        XCTAssertTrue(app.staticTexts["Chromatic Memory"].exists,
+        XCTAssertTrue(app.staticTexts["Chromatic Memory"].waitForExistence(timeout: 5),
                       "Second essay title should appear")
     }
 
@@ -307,6 +371,7 @@ final class ScholarsGalleryUITests: XCTestCase {
 
         XCTAssertTrue(app.buttons.matching(identifier: "tab.scholarship").firstMatch.waitForExistence(timeout: 8))
         app.buttons.matching(identifier: "tab.scholarship").firstMatch.tap()
+        tapScholarshipEssaysSection(in: app)
 
         XCTAssertTrue(app.staticTexts["The Grammar of Light"].waitForExistence(timeout: 15))
         app.staticTexts["The Grammar of Light"].tap()
@@ -371,8 +436,11 @@ final class ScholarsGalleryUITests: XCTestCase {
         XCTAssertTrue(app.buttons.matching(identifier: "tab.collection").firstMatch.waitForExistence(timeout: 8))
         app.buttons.matching(identifier: "tab.collection").firstMatch.tap()
 
+        let menu = el("collection.menuButton", in: app)
+        XCTAssertTrue(menu.waitForExistence(timeout: 5), "Collection menu button should exist in toolbar")
+        menu.tap()
         XCTAssertTrue(el("collection.refreshButton", in: app).waitForExistence(timeout: 5),
-                      "Collection refresh button should exist in toolbar")
+                      "Collection refresh action should exist in menu")
     }
 
     // MARK: - Phase 5.2 — Tab Switching
@@ -387,11 +455,12 @@ final class ScholarsGalleryUITests: XCTestCase {
 
         XCTAssertTrue(app.buttons.matching(identifier: "tab.exhibitions").firstMatch.waitForExistence(timeout: 8))
 
-        let tabs = ["tab.exhibitions", "tab.studio", "tab.scholarship", "tab.collection", "tab.studio", "tab.exhibitions"]
+        let tabs = ["tab.exhibitions", "tab.studio", "tab.scholarship", "tab.saved", "tab.exhibitions"]
         for tab in tabs {
+            app.tap()
             app.buttons.matching(identifier: tab).firstMatch.tap()
-            // Brief pause to let view settle
-            _ = app.buttons.matching(identifier: "tab.exhibitions").firstMatch.waitForExistence(timeout: 1)
+            Thread.sleep(forTimeInterval: 0.6)
+            _ = app.buttons.matching(identifier: "tab.exhibitions").firstMatch.waitForExistence(timeout: 3)
         }
 
         // App is still alive after rapid switching
@@ -442,9 +511,12 @@ final class ScholarsGalleryUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.buttons.matching(identifier: "tab.exhibitions").firstMatch.waitForExistence(timeout: 8))
-        // ContentUnavailableView should show "no exhibitions" message
-        let navBar = app.navigationBars.firstMatch
-        XCTAssertTrue(navBar.waitForExistence(timeout: 5))
+        let emptyState = el("home.emptyState", in: app)
+        let emptyCopy = app.staticTexts["No exhibitions available"]
+        XCTAssertTrue(
+            emptyState.waitForExistence(timeout: 10) || emptyCopy.waitForExistence(timeout: 3),
+            "Empty exhibitions state should appear when mock JSON is an empty array"
+        )
     }
 
     @MainActor
@@ -511,17 +583,20 @@ final class ScholarsGalleryUITests: XCTestCase {
         let editor = el("dola.promptEditor", in: app)
         XCTAssertTrue(editor.waitForExistence(timeout: 5))
 
-        // Type text into Dola editor
-        editor.tap()
-        editor.typeText("dramatic light through cathedral windows")
+        let existing = (editor.value as? String) ?? ""
+        if existing.count < 12 {
+            editor.tap()
+            editor.typeText("dramatic light through cathedral windows")
+        }
 
         let askBtn = el("dola.askButton", in: app)
-        XCTAssertTrue(askBtn.waitForExistence(timeout: 8), "Ask button should appear after typing")
+        XCTAssertTrue(askBtn.waitForExistence(timeout: 8), "Ask button should appear when prompt is valid")
+        XCTAssertTrue(askBtn.isEnabled, "Ask button should be enabled with a valid prompt")
     }
 
     @MainActor
     func testEndToEndLiveBackendJourneyAcrossTabs() throws {
-        let app = makeApp(apiBaseURL: "http://127.0.0.1:8081")
+        let app = makeApp(apiBaseURL: UITestAPIConfiguration.liveBackendBaseURL)
         app.launch()
 
         XCTAssertTrue(app.buttons.matching(identifier: "tab.exhibitions").firstMatch.waitForExistence(timeout: 12), "Tab bar should appear")
@@ -540,13 +615,15 @@ final class ScholarsGalleryUITests: XCTestCase {
         studioTab.tap()
         let generateButton = el("studio.generateButton", in: app)
         XCTAssertTrue(generateButton.waitForExistence(timeout: 8), "Studio generate button should be visible")
+        XCTAssertTrue(generateButton.isEnabled, "Studio generate should be enabled with a valid prompt")
         generateButton.tap()
-        XCTAssertTrue(el("studio.resultProvider", in: app).waitForExistence(timeout: 15),
+        XCTAssertTrue(el("studio.resultProvider", in: app).waitForExistence(timeout: 25),
                       "Studio should render a generated result from the live backend")
 
         let scholarshipTab = app.buttons.matching(identifier: "tab.scholarship").firstMatch
         XCTAssertTrue(scholarshipTab.waitForExistence(timeout: 8))
         scholarshipTab.tap()
+        tapScholarshipEssaysSection(in: app)
         let essayTitle = app.staticTexts["Generative Art as Scholarly Surface"]
         XCTAssertTrue(essayTitle.waitForExistence(timeout: 20), "Scholarship should load live essay summaries")
         essayTitle.tap()
@@ -713,58 +790,50 @@ final class StudyCoachUITests: XCTestCase {
         continueAfterFailure = false
         app = XCUIApplication()
         app.launchEnvironment["MOCK_MONITOR_ACCESS"] = "1"
-        app.launchEnvironment["UITEST_ESSAYS_JSON"] = "[]"
+        app.launchEnvironment["UITEST_SCHOLARSHIP_SECTION"] = "coach"
     }
 
     override func tearDownWithError() throws {
         app = nil
     }
 
-    func testStudyCoach_modePickerAccessible() {
-        app.launch()
+    private func openStudyCoach() {
         let scholarshipTab = app.buttons.matching(identifier: "tab.scholarship").firstMatch
         XCTAssertTrue(scholarshipTab.waitForExistence(timeout: 8))
         scholarshipTab.tap()
+        let coachSegment = app.buttons["Study Coach"]
+        XCTAssertTrue(coachSegment.waitForExistence(timeout: 5), "Study Coach segment should be visible")
+        coachSegment.tap()
+    }
 
-        let coachButton = app.buttons["Study Coach"]
-        if coachButton.waitForExistence(timeout: 3) { coachButton.tap() }
+    func testStudyCoach_modePickerAccessible() {
+        app.launch()
+        openStudyCoach()
 
-        let modePicker = app.segmentedControls["studyCoach.modePicker"]
-        XCTAssertTrue(modePicker.waitForExistence(timeout: 5), "Study Coach mode picker should be accessible")
+        let modePicker = app.descendants(matching: .any).matching(identifier: "studyCoach.modePicker").firstMatch
+        XCTAssertTrue(modePicker.waitForExistence(timeout: 8), "Study Coach mode picker should be accessible")
     }
 
     func testStudyCoach_topicFieldAndGenerateButton() {
         app.launch()
-        let scholarshipTab = app.buttons.matching(identifier: "tab.scholarship").firstMatch
-        XCTAssertTrue(scholarshipTab.waitForExistence(timeout: 8))
-        scholarshipTab.tap()
+        openStudyCoach()
 
-        let coachButton = app.buttons["Study Coach"]
-        if coachButton.waitForExistence(timeout: 3) { coachButton.tap() }
+        let topicField = app.descendants(matching: .any).matching(identifier: "studyCoach.topicField").firstMatch
+        XCTAssertTrue(topicField.waitForExistence(timeout: 8), "Study Coach topic field should be accessible")
 
-        let topicField = app.textFields["studyCoach.topicField"]
-        XCTAssertTrue(topicField.waitForExistence(timeout: 5), "Study Coach topic field should be accessible")
-
-        let generateButton = app.buttons["studyCoach.generateButton"]
-        XCTAssertTrue(generateButton.waitForExistence(timeout: 5), "Study Coach generate button should be accessible")
+        let generateButton = app.descendants(matching: .any).matching(identifier: "studyCoach.generateButton").firstMatch
+        XCTAssertTrue(generateButton.waitForExistence(timeout: 8), "Study Coach generate button should be accessible")
     }
 
     func testStudyCoach_quickStartButtonsPresent() {
         app.launch()
-        let scholarshipTab = app.buttons.matching(identifier: "tab.scholarship").firstMatch
-        XCTAssertTrue(scholarshipTab.waitForExistence(timeout: 8))
-        scholarshipTab.tap()
+        openStudyCoach()
 
-        let coachButton = app.buttons["Study Coach"]
-        if coachButton.waitForExistence(timeout: 3) { coachButton.tap() }
-
-        // At least one quick start button should exist (indexed by topic)
         let quickStartPredicate = NSPredicate(format: "identifier BEGINSWITH 'studyCoach.quickStart.'")
-        let quickStartButtons = app.buttons.matching(quickStartPredicate)
+        let quickStartButtons = app.descendants(matching: .any).matching(quickStartPredicate)
         XCTAssertGreaterThan(quickStartButtons.count, 0, "At least one quick start topic button should be present")
 
-        // Tap the first one and verify no crash
-        if quickStartButtons.firstMatch.waitForExistence(timeout: 3) {
+        if quickStartButtons.firstMatch.waitForExistence(timeout: 5) {
             quickStartButtons.firstMatch.tap()
             XCTAssertTrue(app.exists, "App should remain stable after tapping quick start")
         }

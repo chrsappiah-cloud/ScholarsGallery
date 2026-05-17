@@ -61,12 +61,22 @@ else
   echo "(Serial test execution — set IOS_PARALLEL_UI_TESTS=1 to allow parallel runners)"
 fi
 
-xcodebuild test \
-  -project "ScholarsGallery.xcodeproj" \
-  -scheme "ScholarsGallery" \
-  -configuration Debug \
-  -destination "$DEST" \
-  -only-testing:ScholarsGalleryUITests \
-  "${PARALLEL_ARGS[@]}"
+UI_TEST_CLASSES=(
+  "ScholarsGalleryUITests/ScholarsGalleryUITests"
+  "ScholarsGalleryUITests/SubscriptionPanelUITests"
+  "ScholarsGalleryUITests/AdminAccessGrantsUITests"
+  "ScholarsGalleryUITests/StudyCoachUITests"
+)
+
+for CLASS in "${UI_TEST_CLASSES[@]}"; do
+  echo "Running UI test class: $CLASS"
+  xcodebuild test \
+    -project "ScholarsGallery.xcodeproj" \
+    -scheme "ScholarsGallery" \
+    -configuration Debug \
+    -destination "$DEST" \
+    -only-testing:"$CLASS" \
+    "${PARALLEL_ARGS[@]}"
+done
 
 echo "UI tests finished."

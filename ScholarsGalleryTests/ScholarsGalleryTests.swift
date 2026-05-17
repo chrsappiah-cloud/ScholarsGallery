@@ -311,7 +311,11 @@ struct ScholarsGalleryTests {
 
     @Test func galleryAPIConfigurationProvidesDefaultURL() {
         let url = GalleryAPIConfiguration.baseURL
-        #expect(url.absoluteString.contains("127.0.0.1") || url.absoluteString.contains("scholarsgallery"))
+        #expect(
+            url.absoluteString.contains("127.0.0.1")
+                || url.absoluteString.contains("scholarsgallery")
+                || url.absoluteString.contains("192.168.")
+        )
     }
 
     // MARK: - CloudBackupError
