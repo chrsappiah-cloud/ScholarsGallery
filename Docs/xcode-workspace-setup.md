@@ -60,6 +60,7 @@
 - `Debug` builds read `GALLERY_API_BASE_URL=http://127.0.0.1:8081` from build settings.
 - `Release` builds read `GALLERY_API_BASE_URL=https://api.scholarsgallery.app`.
 - You can override these in target build settings without changing source code.
+- For a one-off runtime activation during device/simulator testing, set `GALLERY_API_BASE_URL_OVERRIDE` in the scheme environment or bundle a plain-text `gallery-api-base-url.txt` resource with the absolute API base URL.
 
 ## Localization
 

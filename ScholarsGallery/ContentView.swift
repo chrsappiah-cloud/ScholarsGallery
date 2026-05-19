@@ -392,23 +392,42 @@ private struct ImmersiveHomeView: View {
 
     @ViewBuilder
     private var announcementBanner: some View {
-        if let notice = galleryBackendMeta.meta?.announcement?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !notice.isEmpty {
-            Text(notice)
-                .font(.caption.weight(.medium))
-                .foregroundStyle(GalleryTheme.textPrimary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(12)
-                .background(GalleryTheme.accent.opacity(0.15))
-                .overlay(
-                    Rectangle()
-                        .fill(GalleryTheme.accent)
-                        .frame(width: 3),
-                    alignment: .leading
+        VStack(spacing: 8) {
+            if let summary = galleryBackendMeta.connectionSummary {
+                statusBanner(
+                    summary,
+                    accent: galleryBackendMeta.lastRefreshFailed ? GalleryTheme.rose : GalleryTheme.accent,
+                    accessibilityIdentifier: "home.backendStatusBanner"
                 )
-                .padding(.horizontal, 20)
-                .padding(.bottom, 8)
+            }
+
+            if let notice = galleryBackendMeta.meta?.announcement?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !notice.isEmpty {
+                statusBanner(notice, accent: GalleryTheme.accent)
+            }
         }
+        .padding(.bottom, 8)
+    }
+
+    private func statusBanner(
+        _ text: String,
+        accent: Color,
+        accessibilityIdentifier: String? = nil
+    ) -> some View {
+        Text(text)
+            .font(.caption.weight(.medium))
+            .foregroundStyle(GalleryTheme.textPrimary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(12)
+            .background(accent.opacity(0.15))
+            .overlay(
+                Rectangle()
+                    .fill(accent)
+                    .frame(width: 3),
+                alignment: .leading
+            )
+            .padding(.horizontal, 20)
+            .modifier(OptionalAccessibilityIdentifier(identifier: accessibilityIdentifier))
     }
 
     private var exhibitionContent: some View {
@@ -499,6 +518,18 @@ private struct ImmersiveHomeView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityIdentifier("home.emptyState")
         .accessibilityLabel(String(localized: "home.noExhibitionsAvailable"))
+    }
+}
+
+private struct OptionalAccessibilityIdentifier: ViewModifier {
+    let identifier: String?
+
+    func body(content: Content) -> some View {
+        if let identifier {
+            content.accessibilityIdentifier(identifier)
+        } else {
+            content
+        }
     }
 }
 
@@ -2063,13 +2094,17 @@ private struct GeneratedCreationsGalleryView: View {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 12)], spacing: 12) {
                         ForEach(creations) { artwork in
                             VStack(alignment: .leading, spacing: 6) {
-                                AsyncImage(url: URL(string: artwork.imageURL)) { phase in
+                                AsyncImage(url: GalleryAPIConfiguration.remoteAssetURL(from: artwork.imageURL)) { phase in
                                     switch phase {
-                                    case .success(let image):
-                                        image.resizable().aspectRatio(contentMode: .fill)
-                                    default:
+                                    case .empty:
                                         Rectangle().fill(GalleryTheme.card)
                                             .overlay(ProgressView())
+                                    case .success(let image):
+                                        image.resizable().aspectRatio(contentMode: .fill)
+                                    case .failure:
+                                        generatedArtworkImageFailurePlaceholder(height: 140)
+                                    @unknown default:
+                                        generatedArtworkImageFailurePlaceholder(height: 140)
                                     }
                                 }
                                 .frame(height: 140)
@@ -2115,6 +2150,18 @@ private struct GeneratedCreationsGalleryView: View {
             }
         }
     }
+}
+
+@ViewBuilder
+private func generatedArtworkImageFailurePlaceholder(height: CGFloat) -> some View {
+    Rectangle()
+        .fill(GalleryTheme.card)
+        .frame(height: height)
+        .overlay {
+            Image(systemName: "photo.badge.exclamationmark")
+                .font(.title3)
+                .foregroundStyle(GalleryTheme.textTertiary)
+        }
 }
 
 private struct CollectionRecordDetailView: View {
@@ -2621,7 +2668,7 @@ private struct GenerationStudioView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Text(String(localized: "studio.result"))
                                 .font(.headline)
-                            AsyncImage(url: URL(string: generated.imageURL)) { phase in
+                            AsyncImage(url: GalleryAPIConfiguration.remoteAssetURL(from: generated.imageURL)) { phase in
                                 switch phase {
                                 case .empty:
                                     ProgressView().frame(maxWidth: .infinity, minHeight: 220)
@@ -2631,10 +2678,9 @@ private struct GenerationStudioView: View {
                                         .scaledToFit()
                                         .clipShape(RoundedRectangle(cornerRadius: 12))
                                 case .failure:
-                                    Color.gray.opacity(0.2)
-                                        .frame(height: 220)
+                                    generatedArtworkImageFailurePlaceholder(height: 220)
                                 @unknown default:
-                                    EmptyView()
+                                    generatedArtworkImageFailurePlaceholder(height: 220)
                                 }
                             }
                             Text(String(format: String(localized: "studio.providerFormat"), generated.provider))

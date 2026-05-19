@@ -318,6 +318,20 @@ struct ScholarsGalleryTests {
         )
     }
 
+    @Test func galleryAPIConfigurationResolvesAbsoluteRemoteAssetURL() {
+        let raw = "https://cdn.example.com/generated/image%20one.png"
+        let resolved = GalleryAPIConfiguration.remoteAssetURL(from: raw)
+
+        #expect(resolved?.absoluteString == raw)
+    }
+
+    @Test func galleryAPIConfigurationResolvesRelativeRemoteAssetURLAgainstBaseURL() {
+        let resolved = GalleryAPIConfiguration.remoteAssetURL(from: "/media/generated/example.png")
+
+        #expect(resolved?.host == GalleryAPIConfiguration.baseURL.host)
+        #expect(resolved?.path == "/media/generated/example.png")
+    }
+
     // MARK: - CloudBackupError
 
     @Test func cloudBackupErrorHasLocalizedDescription() {
