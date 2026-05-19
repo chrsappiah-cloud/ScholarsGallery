@@ -21,6 +21,7 @@ Override API URL or generation token per environment in **target → Build Setti
    - **Version** → `MARKETING_VERSION` (user-facing version, e.g. `1.0`).
    - **Build** → `CURRENT_PROJECT_VERSION` (monotonic build number for each upload).
 2. Every App Store / TestFlight upload must use a **build number** not used before for that bundle ID.
+3. GitHub Actions **CD** now injects a numeric `CURRENT_PROJECT_VERSION` automatically from the workflow run (`run_number` + `run_attempt`) unless you supply a `build_number` override in **workflow_dispatch**. Local uploads from Xcode still need you to bump the build number yourself first.
 
 ## 3. Archive and upload
 
@@ -42,6 +43,7 @@ Adjust `ExportOptions-appstore.plist` (`method` is `app-store` for iOS App Store
 
 - GitHub Actions **CD** now runs after CI on `main`, tags `v*`, and manual dispatch.
 - CD resolves a GitHub environment: manual dispatch uses the selected `staging` / `production` value, tags default to `production`, and other runs default to `staging`.
+- CI now validates an unsigned **Release** archive on every run, so archive-only regressions fail before CD starts.
 - Unsigned release archives are always produced as artifacts.
 - When signing secrets are configured in the selected GitHub environment, the workflow also creates a signed archive, exports an IPA with `ci_scripts/ExportOptions-testflight.plist`, and uploads it to **TestFlight** with `xcrun altool`.
 - The current TestFlight-ready feature set includes the on-device **Study Coach** powered by `FoundationModels`, quick-start lesson topics, and the hardened dark-mode contrast/background refresh across scholarship and essay surfaces.

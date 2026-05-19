@@ -113,8 +113,8 @@ make ios-test-all
 
 ## CI / CD
 
-- **CI:** `.github/workflows/ci.yml` runs SwiftPM builds, server tests, iOS unit tests, UI tests, and the HTTP smoke test.
-- **CD:** `.github/workflows/cd.yml` runs on `main`, tags `v*`, and manual dispatch. It resolves a GitHub environment (`staging` or `production`), always uploads release artifacts, and requires Apple signing secrets in that environment for a real **TestFlight** upload.
+- **CI:** `.github/workflows/ci.yml` runs SwiftPM builds, server tests, iOS unit tests, UI tests, an unsigned **Release** archive validation, and the HTTP smoke test.
+- **CD:** `.github/workflows/cd.yml` runs on `main`, tags `v*`, and manual dispatch. It resolves a GitHub environment (`staging` or `production`), computes a unique numeric iOS build number from the GitHub run by default (or accepts a manual override), always uploads release artifacts, and requires Apple signing secrets in that environment for a real **TestFlight** upload.
 - TestFlight export settings live in `ci_scripts/ExportOptions-testflight.plist`. App Store export settings remain in `ci_scripts/ExportOptions-appstore.plist`.
 - Current release-facing features include the on-device **Study Coach** (`FoundationModels`) and the lighter, higher-contrast dark-mode refresh.
 

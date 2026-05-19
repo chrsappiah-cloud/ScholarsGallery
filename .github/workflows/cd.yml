@@ -19,6 +19,10 @@ on:
         required: true
         default: true
         type: boolean
+      build_number:
+        description: "Optional numeric build number override for CURRENT_PROJECT_VERSION"
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -54,11 +58,37 @@ jobs:
           fi
           echo "deploy_environment=$deploy_environment" >> "$GITHUB_OUTPUT"
 
+  resolve-build-number:
+    name: Resolve build number
+    runs-on: ubuntu-latest
+    outputs:
+      build_number: ${{ steps.resolve.outputs.build_number }}
+    steps:
+      - id: resolve
+        env:
+          INPUT_BUILD_NUMBER: ${{ github.event.inputs.build_number }}
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${INPUT_BUILD_NUMBER:-}" ]]; then
+            build_number="$INPUT_BUILD_NUMBER"
+          else
+            printf -v build_number '%s%02d' "$GITHUB_RUN_NUMBER" "$GITHUB_RUN_ATTEMPT"
+          fi
+
+          if [[ ! "$build_number" =~ ^[0-9]+$ ]]; then
+            echo "::error::build_number must contain digits only."
+            exit 1
+          fi
+
+          echo "build_number=$build_number" >> "$GITHUB_OUTPUT"
+
   archive:
     name: Archive iOS App
     runs-on: macos-latest
     timeout-minutes: 45
-    needs: [ci-gate, resolve-environment]
+    needs: [ci-gate, resolve-environment, resolve-build-number]
     environment: ${{ needs.resolve-environment.outputs.deploy_environment }}
     env:
       APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
@@ -138,13 +168,14 @@ jobs:
             -destination 'generic/platform=iOS' \
             -archivePath build/unsigned/ScholarsGallery.xcarchive \
             archive \
+            CURRENT_PROJECT_VERSION=${{ needs.resolve-build-number.outputs.build_number }} \
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_ALLOWED=NO
 
       - name: Upload unsigned archive artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ScholarsGallery-archive-unsigned
+          name: ScholarsGallery-archive-unsigned-${{ needs.resolve-build-number.outputs.build_number }}
           path: build/unsigned/ScholarsGallery.xcarchive
           retention-days: 30
 
@@ -201,6 +232,7 @@ jobs:
             -archivePath build/testflight/ScholarsGallery.xcarchive \
             -allowProvisioningUpdates \
             archive \
+            CURRENT_PROJECT_VERSION=${{ needs.resolve-build-number.outputs.build_number }} \
             "${EXTRA_ARGS[@]}"
 
       - name: Export signed IPA
@@ -216,7 +248,7 @@ jobs:
         if: steps.preflight.outputs.signing_ready == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: ScholarsGallery-testflight
+          name: ScholarsGallery-testflight-${{ needs.resolve-build-number.outputs.build_number }}
           path: |
             build/testflight/ScholarsGallery.xcarchive
             build/testflight/export/*.ipa
