@@ -9,15 +9,7 @@ final class SupabaseCollectionSync {
         subsystem: Bundle.main.bundleIdentifier ?? "ScholarsGallery",
         category: "SupabaseSync"
     )
-
-    private var supabaseURL: URL? {
-        guard let raw = Bundle.main.object(forInfoDictionaryKey: "SUPABASE_URL") as? String,
-              !raw.isEmpty,
-              let url = URL(string: raw) else {
-            return GalleryAPIConfiguration.isLocalDevelopment ? nil : nil
-        }
-        return url
-    }
+    private let session = AppHTTPSession.shared
 
     func syncCollection(records: [CollectionSyncRecord]) async {
         let baseURL = GalleryAPIConfiguration.baseURL
@@ -25,14 +17,15 @@ final class SupabaseCollectionSync {
         request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        guard let body = try? JSONEncoder().encode(CollectionSyncPayload(records: records)) else {
+        let encoder = CollectionSyncTransportCoding.makeEncoder()
+        guard let body = try? encoder.encode(CollectionSyncPayload(records: records)) else {
             logger.warning("Failed to encode collection sync payload")
             return
         }
         request.httpBody = body
 
         do {
-            let (_, response) = try await URLSession.shared.data(for: request)
+            let (_, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
                 logger.warning("Collection sync returned non-2xx")
                 return
@@ -49,14 +42,17 @@ final class SupabaseCollectionSync {
         request.httpMethod = "POST"
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        guard let body = try? JSONEncoder().encode(FavoritesSyncPayload(artworkIDs: artworkIDs)) else {
+        let encoder = CollectionSyncTransportCoding.makeEncoder()
+        guard let body = try? encoder.encode(FavoritesSyncPayload(artworkIDs: artworkIDs)) else {
+            logger.warning("Failed to encode favorites sync payload")
             return
         }
         request.httpBody = body
 
         do {
-            let (_, response) = try await URLSession.shared.data(for: request)
+            let (_, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+                logger.warning("Favorites sync returned non-2xx")
                 return
             }
             logger.info("Synced \(artworkIDs.count) favorites to server")
@@ -70,12 +66,11 @@ final class SupabaseCollectionSync {
         let url = baseURL.appendingPathComponent("api/collection")
 
         do {
-            let (data, response) = try await URLSession.shared.data(from: url)
+            let (data, response) = try await session.data(from: url)
             guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
                 return []
             }
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
+            let decoder = CollectionSyncTransportCoding.makeDecoder()
             return (try? decoder.decode([CollectionSyncRecord].self, from: data)) ?? []
         } catch {
             logger.warning("Fetch remote collection failed: \(error.localizedDescription)")
@@ -88,11 +83,11 @@ final class SupabaseCollectionSync {
         let url = baseURL.appendingPathComponent("api/collection/favorites")
 
         do {
-            let (data, response) = try await URLSession.shared.data(from: url)
+            let (data, response) = try await session.data(from: url)
             guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
                 return []
             }
-            let decoded = try JSONDecoder().decode([String].self, from: data)
+            let decoded = try CollectionSyncTransportCoding.makeDecoder().decode([String].self, from: data)
             return Set(decoded)
         } catch {
             logger.warning("Fetch remote favorites failed: \(error.localizedDescription)")
@@ -114,4 +109,18 @@ private struct CollectionSyncPayload: Codable, Sendable {
 
 private struct FavoritesSyncPayload: Codable, Sendable {
     let artworkIDs: [String]
+}
+
+enum CollectionSyncTransportCoding {
+    static func makeEncoder() -> JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        return encoder
+    }
+
+    static func makeDecoder() -> JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return decoder
+    }
 }

@@ -68,6 +68,31 @@ struct GeneratedArtworkHistoryCacheTests {
     }
 }
 
+@Suite("Collection Sync Transport Coding")
+struct CollectionSyncTransportCodingTests {
+    @Test
+    func roundTripsISO8601Dates() throws {
+        let record = CollectionSyncRecord(
+            id: "rec-001",
+            artworkID: "art-001",
+            acquiredAt: Date(timeIntervalSince1970: 1_700_000_000),
+            certificateID: "CERT-001"
+        )
+
+        let encoder = CollectionSyncTransportCoding.makeEncoder()
+        let data = try encoder.encode([record])
+        let json = try #require(String(data: data, encoding: .utf8))
+        #expect(json.contains("2023-11-14T22:13:20Z"))
+
+        let decoded = try CollectionSyncTransportCoding.makeDecoder().decode([CollectionSyncRecord].self, from: data)
+        #expect(decoded.count == 1)
+        #expect(decoded.first?.id == record.id)
+        #expect(decoded.first?.artworkID == record.artworkID)
+        #expect(decoded.first?.certificateID == record.certificateID)
+        #expect(decoded.first?.acquiredAt == record.acquiredAt)
+    }
+}
+
 @Suite("Gallery Image Processing")
 struct GalleryImageProcessingTests {
     @Test

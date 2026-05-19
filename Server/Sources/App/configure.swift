@@ -70,15 +70,24 @@ func configure(_ app: Application) throws {
         app.generatedArtworkPersistenceKind = .supabase
         app.catalogLoader = .supabase(projectURL: projectURL, serviceRoleKey: supabaseKey)
         app.catalogPersistenceKind = .supabase
+        app.collectionStore = CollectionStoreActor(supabaseProjectURL: projectURL, serviceRoleKey: supabaseKey)
+        app.collectionPersistenceKind = .supabase
         app.logger.info("Generation history persistence: Supabase (PostgREST)")
         app.logger.info("Gallery catalog: Supabase (PostgREST); apply supabase/migrations for exhibitions, essays, artworks")
+        app.logger.info("Collection persistence: Supabase (PostgREST)")
     } else {
         app.generatedArtworkStore = GeneratedArtworkStore(fileURL: storeURL)
         app.generatedArtworkPersistenceKind = .file
         app.catalogLoader = .static
         app.catalogPersistenceKind = .static
+        let collectionStoreURL = ServerPaths.generatedArtworksStoreURL()
+            .deletingLastPathComponent()
+            .appendingPathComponent("collection-store.json")
+        app.collectionStore = CollectionStoreActor(fileURL: collectionStoreURL)
+        app.collectionPersistenceKind = .file
         app.logger.info("Generation history persistence: local JSON file")
         app.logger.info("Gallery catalog: bundled static JSON (no Supabase)")
+        app.logger.info("Collection persistence: local JSON file")
     }
 
     let adminPolicyURL = ServerPaths.adminPolicyFileURL().standardizedFileURL
@@ -93,11 +102,6 @@ func configure(_ app: Application) throws {
     } else {
         app.logger.info("Admin API disabled until ADMIN_API_TOKEN is set")
     }
-
-    let collectionStoreURL = ServerPaths.generatedArtworksStoreURL()
-        .deletingLastPathComponent()
-        .appendingPathComponent("collection-store.json")
-    app.collectionStore = CollectionStoreActor(fileURL: collectionStoreURL)
 
     let accessGrantsURL = ServerPaths.accessGrantsFileURL().standardizedFileURL
     app.accessGrantStore = AccessGrantStore(fileURL: accessGrantsURL)

@@ -1,6 +1,33 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+run_with_safe_bare_repo() {
+  GIT_CONFIG_COUNT=1 \
+  GIT_CONFIG_KEY_0=safe.bareRepository \
+  GIT_CONFIG_VALUE_0=all \
+  "$@"
+}
+
+resolve_default_destination() {
+  local available preferred name
+  available="$(xcrun simctl list devices available)"
+  preferred=(
+    "iPhone 17"
+    "iPhone 17 Pro"
+    "iPhone 17 Pro Max"
+    "CI iPhone"
+  )
+
+  for name in "${preferred[@]}"; do
+    if awk -v name="$name" '$0 ~ "^[[:space:]]*" name " \\([A-F0-9-]+\\) \\(" { found=1; exit } END { exit found ? 0 : 1 }' <<<"$available"; then
+      printf 'platform=iOS Simulator,name=%s\n' "$name"
+      return
+    fi
+  done
+
+  printf 'platform=iOS Simulator,name=iPhone 17\n'
+}
+
 # Runs UI tests (XCTest) for the iOS app. Requires Xcode and a matching Simulator.
 #
 # Parallel test runners often hit Simulator instability (Mach -308, lost connection
@@ -13,7 +40,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-DEST="${IOS_TEST_DESTINATION:-platform=iOS Simulator,name=iPhone 17}"
+DEST="${IOS_TEST_DESTINATION:-$(resolve_default_destination)}"
+DERIVED_DATA_PATH="${IOS_DERIVED_DATA_PATH:-$ROOT/build/ui-tests-derived-data}"
 
 if [[ "$DEST" == *"platform=iOS Simulator"* ]]; then
   SIM_ID=""
@@ -31,7 +59,13 @@ if [[ "$DEST" == *"platform=iOS Simulator"* ]]; then
   fi
 
   if [[ -z "$SIM_ID" && -n "$SIM_NAME" ]]; then
-    MATCHED_LINE="$(xcrun simctl list devices available | grep -F "$SIM_NAME" | { [[ -n "$SIM_OS" ]] && grep -F "($SIM_OS)" || cat; } | tail -n 1 || true)"
+    MATCHED_LINE="$(xcrun simctl list devices available | awk -v name="$SIM_NAME" -v os="$SIM_OS" '
+      $0 ~ "^[[:space:]]*" name " \\([A-F0-9-]+\\) \\(" {
+        if (os == "" || index($0, "(" os ")") > 0) {
+          print
+        }
+      }
+    ' | tail -n 1 || true)"
     if [[ -n "$MATCHED_LINE" ]]; then
       SIM_ID="$(printf '%s\n' "$MATCHED_LINE" | grep -Eo '[A-F0-9-]{36}' | head -n 1 || true)"
     fi
@@ -60,6 +94,8 @@ if [[ "${IOS_PARALLEL_UI_TESTS:-}" == "1" ]]; then
 else
   echo "(Serial test execution — set IOS_PARALLEL_UI_TESTS=1 to allow parallel runners)"
 fi
+echo "Using derived data path: $DERIVED_DATA_PATH"
+rm -rf "$DERIVED_DATA_PATH"
 
 UI_TEST_CLASSES=(
   "ScholarsGalleryUITests/ScholarsGalleryUITests"
@@ -70,11 +106,12 @@ UI_TEST_CLASSES=(
 
 for CLASS in "${UI_TEST_CLASSES[@]}"; do
   echo "Running UI test class: $CLASS"
-  xcodebuild test \
+  run_with_safe_bare_repo xcodebuild test \
     -project "ScholarsGallery.xcodeproj" \
     -scheme "ScholarsGallery" \
     -configuration Debug \
     -destination "$DEST" \
+    -derivedDataPath "$DERIVED_DATA_PATH" \
     -only-testing:"$CLASS" \
     "${PARALLEL_ARGS[@]}"
 done

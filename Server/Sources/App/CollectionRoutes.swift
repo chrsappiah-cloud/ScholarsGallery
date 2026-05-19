@@ -21,6 +21,11 @@ struct UploadResponseDTO: Content {
     let artworkId: String
 }
 
+enum CollectionPersistenceKind: String, Sendable {
+    case file
+    case supabase
+}
+
 func registerCollectionRoutes(_ app: Application) throws {
     let collection = app.grouped("api", "collection")
 
@@ -28,14 +33,14 @@ func registerCollectionRoutes(_ app: Application) throws {
         guard let store = req.application.collectionStore else {
             return []
         }
-        return await store.all()
+        return try await store.all()
     }
 
     collection.get("favorites") { req async throws -> [String] in
         guard let store = req.application.collectionStore else {
             return []
         }
-        return await store.allFavorites()
+        return try await store.allFavorites()
     }
 
     collection.post("sync") { req async throws -> HTTPStatus in
@@ -43,7 +48,7 @@ func registerCollectionRoutes(_ app: Application) throws {
         guard let store = req.application.collectionStore else {
             throw Abort(.serviceUnavailable, reason: "Collection store not configured.")
         }
-        await store.merge(input.records)
+        try await store.merge(input.records)
         return .ok
     }
 
@@ -52,7 +57,7 @@ func registerCollectionRoutes(_ app: Application) throws {
         guard let store = req.application.collectionStore else {
             throw Abort(.serviceUnavailable, reason: "Collection store not configured.")
         }
-        await store.syncFavorites(input.artworkIDs)
+        try await store.syncFavorites(input.artworkIDs)
         return .ok
     }
 
@@ -85,19 +90,31 @@ func registerCollectionRoutes(_ app: Application) throws {
             }
         }
 
-        guard let artworkId, let imageData, !imageData.isEmpty else {
+        guard let rawArtworkId = artworkId,
+              let artworkId = normalizedArtworkID(rawArtworkId),
+              let imageData,
+              !imageData.isEmpty else {
             throw Abort(.badRequest, reason: "Missing artworkId or image data.")
+        }
+
+        guard let imageFormat = detectedImageFormat(for: imageData) else {
+            throw Abort(.unsupportedMediaType, reason: "Unsupported image payload.")
         }
 
         let uploadsDir = URL(fileURLWithPath: ServerPaths.publicDirectory)
             .appendingPathComponent("uploads", isDirectory: true)
         try FileManager.default.createDirectory(at: uploadsDir, withIntermediateDirectories: true)
 
-        let savedFilename = "\(artworkId)_\(filename)"
+        let sanitizedFilename = sanitizeUploadFilename(filename)
+        let filenameStem = (sanitizedFilename as NSString).deletingPathExtension
+        let finalStem = filenameStem.isEmpty ? "upload" : filenameStem
+        let savedFilename = "\(artworkId)_\(finalStem)_\(UUID().uuidString).\(imageFormat.fileExtension)"
         let savedURL = uploadsDir.appendingPathComponent(savedFilename)
-        try imageData.write(to: savedURL)
+        try imageData.write(to: savedURL, options: .atomic)
 
-        let publicPath = "/uploads/\(savedFilename)"
+        let publicPath = uploadPublicBaseURL(for: req)
+            .appendingPathComponent("uploads/\(savedFilename)")
+            .absoluteString
         req.logger.info("Saved uploaded image", metadata: [
             "artworkId": "\(artworkId)",
             "path": "\(publicPath)",
@@ -138,69 +155,210 @@ struct PaymentValidationResponse: Content {
 // MARK: - Collection Store
 
 actor CollectionStoreActor {
-    private var records: [CollectionRecordDTO] = []
-    private var favorites: Set<String> = []
-    private let fileURL: URL
+    private enum Backend {
+        case file(URL, [CollectionRecordDTO], Set<String>)
+        case supabase(projectURL: URL, serviceRoleKey: String)
+    }
+
+    private var backend: Backend
 
     init(fileURL: URL) {
-        self.fileURL = fileURL
         let loadedState = Self.loadFromDisk(fileURL: fileURL)
-        records = loadedState.records
-        favorites = loadedState.favorites
+        backend = .file(fileURL, loadedState.records, loadedState.favorites)
     }
 
-    func all() -> [CollectionRecordDTO] {
-        records
+    init(supabaseProjectURL: URL, serviceRoleKey: String) {
+        backend = .supabase(projectURL: supabaseProjectURL, serviceRoleKey: serviceRoleKey)
     }
 
-    func allFavorites() -> [String] {
-        favorites.sorted()
-    }
-
-    func merge(_ incoming: [CollectionRecordDTO]) {
-        var mergedRecords = Dictionary(uniqueKeysWithValues: records.map { ($0.id, $0) })
-        for record in incoming {
-            mergedRecords[record.id] = record
+    func all() async throws -> [CollectionRecordDTO] {
+        switch backend {
+        case .file(_, let records, _):
+            return records
+        case .supabase(let projectURL, let key):
+            return try await Self.fetchSupabaseRecords(projectURL: projectURL, serviceRoleKey: key)
         }
-        records = mergedRecords.values.sorted { lhs, rhs in
+    }
+
+    func allFavorites() async throws -> [String] {
+        switch backend {
+        case .file(_, _, let favorites):
+            return favorites.sorted()
+        case .supabase(let projectURL, let key):
+            return try await Self.fetchSupabaseFavorites(projectURL: projectURL, serviceRoleKey: key)
+        }
+    }
+
+    func merge(_ incoming: [CollectionRecordDTO]) async throws {
+        let normalized = Self.normalizedRecords(from: incoming)
+        switch backend {
+        case .file(let fileURL, let existingRecords, let favorites):
+            var mergedRecords = Dictionary(uniqueKeysWithValues: existingRecords.map { ($0.id, $0) })
+            for record in normalized {
+                mergedRecords[record.id] = record
+            }
+            let sorted = Self.normalizedRecords(from: Array(mergedRecords.values))
+            backend = .file(fileURL, sorted, favorites)
+            try persistFileIfNeeded()
+        case .supabase(let projectURL, let key):
+            try await Self.upsertSupabaseRecords(normalized, projectURL: projectURL, serviceRoleKey: key)
+        }
+    }
+
+    func syncFavorites(_ artworkIDs: [String]) async throws {
+        let normalized = Self.normalizedFavorites(from: artworkIDs)
+        switch backend {
+        case .file(let fileURL, let records, _):
+            backend = .file(fileURL, records, Set(normalized))
+            try persistFileIfNeeded()
+        case .supabase(let projectURL, let key):
+            try await Self.replaceSupabaseFavorites(normalized, projectURL: projectURL, serviceRoleKey: key)
+        }
+    }
+
+    private func persistFileIfNeeded() throws {
+        guard case .file(let fileURL, let records, let favorites) = backend else { return }
+        let snapshot = CollectionStoreSnapshot(
+            records: records,
+            favorites: favorites.sorted()
+        )
+        let data = try JSONCoding.makeEncoder().encode(snapshot)
+        try data.write(to: fileURL, options: .atomic)
+    }
+
+    private static func loadFromDisk(fileURL: URL) -> (records: [CollectionRecordDTO], favorites: Set<String>) {
+        guard let data = try? Data(contentsOf: fileURL) else { return ([], []) }
+        let decoder = JSONCoding.makeDecoder()
+
+        if let snapshot = try? decoder.decode(CollectionStoreSnapshot.self, from: data) {
+            return (normalizedRecords(from: snapshot.records), Set(normalizedFavorites(from: snapshot.favorites)))
+        }
+
+        if let legacyRecords = try? decoder.decode([CollectionRecordDTO].self, from: data) {
+            return (normalizedRecords(from: legacyRecords), [])
+        }
+
+        return ([], [])
+    }
+
+    private static func normalizedRecords(from records: [CollectionRecordDTO]) -> [CollectionRecordDTO] {
+        var unique: [String: CollectionRecordDTO] = [:]
+        for record in records where !record.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            unique[record.id] = record
+        }
+        return unique.values.sorted { lhs, rhs in
             if lhs.acquiredAt == rhs.acquiredAt {
                 return lhs.id < rhs.id
             }
             return lhs.acquiredAt > rhs.acquiredAt
         }
-        persist()
     }
 
-    func syncFavorites(_ artworkIDs: [String]) {
-        favorites = Set(artworkIDs)
-        persist()
+    private static func normalizedFavorites(from artworkIDs: [String]) -> [String] {
+        Array(
+            Set(
+                artworkIDs
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+            )
+        ).sorted()
     }
 
-    private func persist() {
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        let snapshot = CollectionStoreSnapshot(
-            records: records,
-            favorites: favorites.sorted()
+    private static func restTableURL(projectURL: URL, table: String, queryItems: [URLQueryItem] = []) -> URL {
+        let base = projectURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        var components = URLComponents(string: base + "/rest/v1/" + table)!
+        components.queryItems = queryItems.isEmpty ? nil : queryItems
+        return components.url!
+    }
+
+    private static func fetchSupabaseRecords(projectURL: URL, serviceRoleKey: String) async throws -> [CollectionRecordDTO] {
+        var request = URLRequest(
+            url: restTableURL(
+                projectURL: projectURL,
+                table: "collection_records",
+                queryItems: [
+                    URLQueryItem(name: "select", value: "id,artwork_id,acquired_at,certificate_id"),
+                    URLQueryItem(name: "order", value: "acquired_at.desc,id.asc"),
+                ]
+            )
         )
-        guard let data = try? encoder.encode(snapshot) else { return }
-        try? data.write(to: fileURL)
+        request.httpMethod = "GET"
+        addSupabaseHeaders(&request, serviceRoleKey: serviceRoleKey)
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        let data = try await ServerHTTPClient.perform(request, failurePrefix: "Supabase collection list")
+        let decoder = JSONCoding.makeDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return normalizedRecords(from: try decoder.decode([CollectionRecordDTO].self, from: data))
     }
 
-    private static func loadFromDisk(fileURL: URL) -> (records: [CollectionRecordDTO], favorites: Set<String>) {
-        guard let data = try? Data(contentsOf: fileURL) else { return ([], []) }
+    private static func fetchSupabaseFavorites(projectURL: URL, serviceRoleKey: String) async throws -> [String] {
+        var request = URLRequest(
+            url: restTableURL(
+                projectURL: projectURL,
+                table: "collection_favorites",
+                queryItems: [
+                    URLQueryItem(name: "select", value: "artwork_id"),
+                    URLQueryItem(name: "order", value: "artwork_id.asc"),
+                ]
+            )
+        )
+        request.httpMethod = "GET"
+        addSupabaseHeaders(&request, serviceRoleKey: serviceRoleKey)
+        request.addValue("application/json", forHTTPHeaderField: "Accept")
+        let data = try await ServerHTTPClient.perform(request, failurePrefix: "Supabase favorites list")
         let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let rows = try decoder.decode([FavoriteRow].self, from: data)
+        return normalizedFavorites(from: rows.map(\.artworkID))
+    }
 
-        if let snapshot = try? decoder.decode(CollectionStoreSnapshot.self, from: data) {
-            return (snapshot.records, Set(snapshot.favorites))
-        }
+    private static func upsertSupabaseRecords(
+        _ records: [CollectionRecordDTO],
+        projectURL: URL,
+        serviceRoleKey: String
+    ) async throws {
+        guard !records.isEmpty else { return }
+        var request = URLRequest(url: restTableURL(projectURL: projectURL, table: "collection_records"))
+        request.httpMethod = "POST"
+        addSupabaseHeaders(&request, serviceRoleKey: serviceRoleKey)
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.addValue("resolution=merge-duplicates,return=minimal", forHTTPHeaderField: "Prefer")
 
-        if let legacyRecords = try? decoder.decode([CollectionRecordDTO].self, from: data) {
-            return (legacyRecords, [])
-        }
+        let encoder = JSONCoding.makeEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        request.httpBody = try encoder.encode(records)
+        _ = try await ServerHTTPClient.perform(request, failurePrefix: "Supabase collection upsert")
+    }
 
-        return ([], [])
+    private static func replaceSupabaseFavorites(
+        _ artworkIDs: [String],
+        projectURL: URL,
+        serviceRoleKey: String
+    ) async throws {
+        var deleteRequest = URLRequest(url: restTableURL(projectURL: projectURL, table: "collection_favorites"))
+        deleteRequest.httpMethod = "DELETE"
+        addSupabaseHeaders(&deleteRequest, serviceRoleKey: serviceRoleKey)
+        deleteRequest.addValue("return=minimal", forHTTPHeaderField: "Prefer")
+        _ = try await ServerHTTPClient.perform(deleteRequest, failurePrefix: "Supabase favorites delete")
+
+        guard !artworkIDs.isEmpty else { return }
+
+        let rows = artworkIDs.map { FavoriteRow(artworkID: $0) }
+        var insertRequest = URLRequest(url: restTableURL(projectURL: projectURL, table: "collection_favorites"))
+        insertRequest.httpMethod = "POST"
+        addSupabaseHeaders(&insertRequest, serviceRoleKey: serviceRoleKey)
+        insertRequest.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        insertRequest.addValue("resolution=merge-duplicates,return=minimal", forHTTPHeaderField: "Prefer")
+
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        insertRequest.httpBody = try encoder.encode(rows)
+        _ = try await ServerHTTPClient.perform(insertRequest, failurePrefix: "Supabase favorites insert")
+    }
+
+    private static func addSupabaseHeaders(_ request: inout URLRequest, serviceRoleKey: String) {
+        request.addValue(serviceRoleKey, forHTTPHeaderField: "apikey")
+        request.addValue("Bearer \(serviceRoleKey)", forHTTPHeaderField: "Authorization")
     }
 }
 
@@ -213,10 +371,19 @@ private struct CollectionStoreStorageKey: StorageKey {
     typealias Value = CollectionStoreActor
 }
 
+private struct CollectionPersistenceKindStorageKey: StorageKey {
+    typealias Value = CollectionPersistenceKind
+}
+
 extension Application {
     var collectionStore: CollectionStoreActor? {
         get { storage[CollectionStoreStorageKey.self] }
         set { storage[CollectionStoreStorageKey.self] = newValue }
+    }
+
+    var collectionPersistenceKind: CollectionPersistenceKind? {
+        get { storage[CollectionPersistenceKindStorageKey.self] }
+        set { storage[CollectionPersistenceKindStorageKey.self] = newValue }
     }
 }
 
@@ -226,6 +393,81 @@ private struct MultipartPart {
     let name: String
     let filename: String?
     let data: Data
+}
+
+private struct FavoriteRow: Codable {
+    let artworkID: String
+}
+
+private enum UploadedImageFormat {
+    case jpeg
+    case png
+    case gif
+    case webp
+    case heic
+
+    var fileExtension: String {
+        switch self {
+        case .jpeg: "jpg"
+        case .png: "png"
+        case .gif: "gif"
+        case .webp: "webp"
+        case .heic: "heic"
+        }
+    }
+}
+
+private func uploadPublicBaseURL(for req: Request) -> URL {
+    let fallback = URL(string: "http://127.0.0.1:\(req.application.http.server.configuration.port)")!
+    guard let host = req.headers.first(name: .host), !host.isEmpty else {
+        return fallback
+    }
+    let scheme = req.headers.first(name: "X-Forwarded-Proto") ?? "http"
+    return URL(string: "\(scheme)://\(host)") ?? fallback
+}
+
+private func normalizedArtworkID(_ raw: String) -> String? {
+    let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty, trimmed.count <= 128 else { return nil }
+    let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_"))
+    guard trimmed.unicodeScalars.allSatisfy(allowed.contains) else { return nil }
+    return trimmed
+}
+
+private func sanitizeUploadFilename(_ raw: String) -> String {
+    let lastPathComponent = (raw as NSString).lastPathComponent
+    let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_."))
+    let filtered = String(lastPathComponent.unicodeScalars.map { scalar in
+        allowed.contains(scalar) ? Character(scalar) : "_"
+    })
+    return filtered.trimmingCharacters(in: CharacterSet(charactersIn: "._"))
+}
+
+private func detectedImageFormat(for data: Data) -> UploadedImageFormat? {
+    guard !data.isEmpty else { return nil }
+
+    if data.starts(with: [0xFF, 0xD8, 0xFF]) {
+        return .jpeg
+    }
+    if data.starts(with: [0x89, 0x50, 0x4E, 0x47]) {
+        return .png
+    }
+    if data.starts(with: Data("GIF8".utf8)) {
+        return .gif
+    }
+    if data.count >= 12,
+       data[0..<4] == Data([0x52, 0x49, 0x46, 0x46]),
+       data[8..<12] == Data([0x57, 0x45, 0x42, 0x50]) {
+        return .webp
+    }
+    if data.count >= 12 {
+        let brand = String(data: data[8..<12], encoding: .ascii)
+        if brand == "heic" || brand == "heix" || brand == "heif" || brand == "mif1" {
+            return .heic
+        }
+    }
+
+    return nil
 }
 
 private func parseMultipart(data: Data, boundary: String) -> [MultipartPart] {

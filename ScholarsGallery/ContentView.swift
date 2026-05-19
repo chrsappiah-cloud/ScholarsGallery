@@ -325,7 +325,7 @@ private struct ImmersiveHomeView: View {
                 .padding(.bottom, 100)
             }
             .background(GalleryAppBackground().ignoresSafeArea())
-            .navigationBarHidden(true)
+            .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $showAdministratorPanel) {
                 AdministratorControlPanelView()
                     .environmentObject(galleryBackendMeta)
@@ -775,6 +775,7 @@ private struct ExhibitionDetailView: View {
             .padding(.bottom, 100)
         }
         .background(GalleryAppBackground().ignoresSafeArea())
+        .toolbar(.visible, for: .navigationBar)
         .navigationTitle(exhibition.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
