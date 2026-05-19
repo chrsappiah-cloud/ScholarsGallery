@@ -54,15 +54,72 @@ struct AppJSONCache {
     }
 }
 
+enum AppPerformanceTuning {
+    private static let targetMemoryCapacity = 64 * 1024 * 1024
+    private static let targetDiskCapacity = 512 * 1024 * 1024
+
+    static func configureCaches() {
+        let shared = URLCache.shared
+        guard shared.memoryCapacity < targetMemoryCapacity || shared.diskCapacity < targetDiskCapacity else {
+            return
+        }
+
+        URLCache.shared = URLCache(
+            memoryCapacity: max(shared.memoryCapacity, targetMemoryCapacity),
+            diskCapacity: max(shared.diskCapacity, targetDiskCapacity),
+            diskPath: nil
+        )
+    }
+}
+
 enum AppHTTPSession {
     static let shared: URLSession = {
+        AppPerformanceTuning.configureCaches()
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 10
         config.timeoutIntervalForResource = 20
         config.waitsForConnectivity = false
-        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        config.urlCache = URLCache.shared
+        config.requestCachePolicy = .useProtocolCachePolicy
+        config.httpMaximumConnectionsPerHost = 6
         return URLSession(configuration: config)
     }()
+}
+
+struct GeneratedArtworkHistoryCache {
+    private let cache: AppJSONCache
+
+    init(cache: AppJSONCache = AppJSONCache()) {
+        self.cache = cache
+    }
+
+    func load(limit: Int) -> [GeneratedArtwork]? {
+        cache.load([GeneratedArtwork].self, for: cacheKey(limit: limit))
+    }
+
+    func save(_ artworks: [GeneratedArtwork], limit: Int) {
+        cache.save(artworks, for: cacheKey(limit: limit))
+    }
+
+    func merge(_ artwork: GeneratedArtwork, into existing: [GeneratedArtwork], limit: Int) -> [GeneratedArtwork] {
+        let cappedLimit = max(1, min(100, limit))
+        var seenIDs: Set<UUID> = []
+        var merged: [GeneratedArtwork] = []
+
+        for item in [artwork] + existing {
+            guard seenIDs.insert(item.id).inserted else { continue }
+            merged.append(item)
+            if merged.count == cappedLimit {
+                break
+            }
+        }
+
+        return merged
+    }
+
+    private func cacheKey(limit: Int) -> String {
+        "cache.generatedArtworks.\(max(1, min(100, limit)))"
+    }
 }
 
 struct CollectionRecordCodec {

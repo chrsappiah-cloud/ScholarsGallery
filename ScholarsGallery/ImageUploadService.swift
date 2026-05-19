@@ -12,6 +12,8 @@ final class ImageUploadService: ObservableObject {
     @Published var isUploading = false
     @Published var uploadError: String?
 
+    private let uploadSession = AppHTTPSession.shared
+
     private let documentsURL: URL = {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("UserUploads", isDirectory: true)
@@ -34,20 +36,28 @@ final class ImageUploadService: ObservableObject {
 
             let id = UUID()
             let filename = "\(id.uuidString).jpg"
+            let thumbnailFilename = "\(id.uuidString)-thumb.jpg"
             let localURL = documentsURL.appendingPathComponent(filename)
+            let thumbnailURL = documentsURL.appendingPathComponent(thumbnailFilename)
 
             do {
-                try data.write(to: localURL)
+                let preparedAssets = try await Task.detached(priority: .userInitiated) {
+                    try GalleryImageProcessing.prepareAssets(from: data)
+                }.value
+
+                try preparedAssets.uploadData.write(to: localURL, options: .atomic)
+                try preparedAssets.thumbnailData.write(to: thumbnailURL, options: .atomic)
                 let record = UploadedImageRecord(
                     id: id,
                     localFilename: filename,
+                    thumbnailFilename: thumbnailFilename,
                     uploadedAt: Date(),
                     syncedToServer: false,
                     serverURL: nil
                 )
                 uploadedImages.insert(record, at: 0)
                 saveLocalRecords()
-                await syncToServer(record: record, data: data)
+                await syncToServer(record: record, data: preparedAssets.uploadData)
             } catch {
                 uploadError = "Failed to save image: \(error.localizedDescription)"
             }
@@ -57,6 +67,16 @@ final class ImageUploadService: ObservableObject {
 
     func imageURL(for record: UploadedImageRecord) -> URL {
         documentsURL.appendingPathComponent(record.localFilename)
+    }
+
+    func previewImageURL(for record: UploadedImageRecord) -> URL {
+        if let thumbnailFilename = record.thumbnailFilename {
+            let thumbnailURL = documentsURL.appendingPathComponent(thumbnailFilename)
+            if FileManager.default.fileExists(atPath: thumbnailURL.path) {
+                return thumbnailURL
+            }
+        }
+        return imageURL(for: record)
     }
 
     func syncPendingUploads() async {
@@ -87,7 +107,7 @@ final class ImageUploadService: ObservableObject {
         request.httpBody = body
 
         do {
-            let (responseData, response) = try await URLSession.shared.data(for: request)
+            let (responseData, response) = try await uploadSession.upload(for: request, from: body)
             guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
                 return
             }
@@ -122,6 +142,7 @@ final class ImageUploadService: ObservableObject {
 struct UploadedImageRecord: Codable, Identifiable, Hashable {
     let id: UUID
     let localFilename: String
+    let thumbnailFilename: String?
     let uploadedAt: Date
     var syncedToServer: Bool
     var serverURL: String?

@@ -1665,7 +1665,7 @@ private struct ScholarshipHomeView: View {
     }
 
     private func refreshAdminGrantStatus() async {
-        guard let deviceID = await UIDevice.current.identifierForVendor?.uuidString else { return }
+        guard let deviceID = UIDevice.current.identifierForVendor?.uuidString else { return }
         var request = URLRequest(url: GalleryAPIConfiguration.baseURL.appendingPathComponent("api/access/check"))
         request.addValue(deviceID, forHTTPHeaderField: "X-Device-ID")
         guard let (data, response) = try? await AppHTTPSession.shared.data(for: request),
@@ -2003,7 +2003,7 @@ private struct CollectorLibraryView: View {
             ScrollView {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 8)], spacing: 8) {
                     ForEach(uploadService.uploadedImages) { record in
-                        let url = uploadService.imageURL(for: record)
+                        let url = uploadService.previewImageURL(for: record)
                         AsyncImage(url: url) { phase in
                             switch phase {
                             case .success(let image):
@@ -2099,14 +2099,18 @@ private struct GeneratedCreationsGalleryView: View {
             }
         }
         .task {
-            isLoading = true
+            if let cached = GalleryAPI.cachedGeneratedArtworks(limit: 50), !cached.isEmpty {
+                creations = cached
+            }
+
+            isLoading = creations.isEmpty
             defer { isLoading = false }
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
             do {
                 creations = try await GalleryAPI.fetchGeneratedArtworks(limit: 50)
             } catch {
-                creations = []
+                if creations.isEmpty {
+                    creations = []
+                }
             }
         }
     }
@@ -2157,6 +2161,7 @@ private enum GalleryCheckoutResult: Equatable {
 private enum GalleryAPI {
     private static let baseURL = GalleryAPIConfiguration.baseURL
     private static let cache = GalleryCache()
+    private static let generatedArtworkHistoryCache = GeneratedArtworkHistoryCache()
     private static let session = AppHTTPSession.shared
     private static let generationToken: String? = {
         guard let raw = Bundle.main.object(forInfoDictionaryKey: "GENERATION_API_TOKEN") as? String,
@@ -2271,7 +2276,13 @@ private enum GalleryAPI {
         try validate(response)
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        return try decoder.decode(GeneratedArtwork.self, from: data)
+        let generated = try decoder.decode(GeneratedArtwork.self, from: data)
+        for limit in [20, 50] {
+            let existing = generatedArtworkHistoryCache.load(limit: limit) ?? []
+            let merged = generatedArtworkHistoryCache.merge(generated, into: existing, limit: limit)
+            generatedArtworkHistoryCache.save(merged, limit: limit)
+        }
+        return generated
     }
 
     static func fetchGeneratedArtworks(limit: Int = 20) async throws -> [GeneratedArtwork] {
@@ -2290,14 +2301,18 @@ private enum GalleryAPI {
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
             let decoded = try decoder.decode([GeneratedArtwork].self, from: data)
-            cache.save(decoded, for: .generatedArtworks(limit))
+            generatedArtworkHistoryCache.save(decoded, limit: limit)
             return decoded
         } catch {
-            if let cached: [GeneratedArtwork] = cache.load(for: .generatedArtworks(limit)) {
+            if let cached = cachedGeneratedArtworks(limit: limit) {
                 return cached
             }
             throw map(error)
         }
+    }
+
+    static func cachedGeneratedArtworks(limit: Int) -> [GeneratedArtwork]? {
+        generatedArtworkHistoryCache.load(limit: limit)
     }
 
     static func fetchEssaySummaries() async throws -> [ScholarlyEssaySummary] {
@@ -2448,7 +2463,7 @@ private struct GenerateArtworkRequest: Codable {
     let artistID: UUID
 }
 
-private struct GeneratedArtwork: Codable, Hashable, Identifiable {
+struct GeneratedArtwork: Codable, Hashable, Identifiable {
     let id: UUID
     let status: String
     let imageURL: String
@@ -2854,12 +2869,17 @@ private final class GenerationStudioViewModel: ObservableObject {
     private static var uiTestRecentJSON: String? { ProcessInfo.processInfo.environment["UITEST_RECENT_GENERATIONS_JSON"] }
 
     func generate() async {
+        let historyCache = GeneratedArtworkHistoryCache()
         if let mode = Self.uiTestGenerateMode {
             if mode == "success" {
                 let mock = GeneratedArtwork(id: UUID(), status: "completed",
                     imageURL: "https://images.unsplash.com/photo-1518770660439-4636190af475",
                     prompt: prompt, provider: "mock-ui-test", createdAt: Date())
-                generated = mock; recentGenerations.insert(mock, at: 0); errorMessage = nil; return
+                generated = mock
+                recentGenerations = historyCache.merge(mock, into: recentGenerations, limit: 20)
+                historyCache.save(recentGenerations, limit: 20)
+                errorMessage = nil
+                return
             }
             if mode == "error" {
                 generated = nil; errorMessage = String(localized: "studio.uiTestError"); return
@@ -2869,8 +2889,9 @@ private final class GenerationStudioViewModel: ObservableObject {
         do {
             generated = try await GalleryAPI.generateArtwork(
                 prompt: prompt.trimmingCharacters(in: .whitespacesAndNewlines), artistID: artistID)
-            await loadRecent()
             if let art = generated {
+                recentGenerations = historyCache.merge(art, into: recentGenerations, limit: 20)
+                historyCache.save(recentGenerations, limit: 20)
                 let artCopy = art
                 Task.detached { @Sendable in
                     await CloudKitSyncManager.shared.syncGeneratedArtwork(
@@ -2901,6 +2922,9 @@ private final class GenerationStudioViewModel: ObservableObject {
     func loadRecent() async {
         if let raw = Self.uiTestRecentJSON, let decoded = Self.decodeRecentFromUITestJSON(raw) {
             recentGenerations = decoded; return
+        }
+        if let cached = GalleryAPI.cachedGeneratedArtworks(limit: 20), !cached.isEmpty {
+            recentGenerations = cached
         }
         do { recentGenerations = try await GalleryAPI.fetchGeneratedArtworks(limit: 20) } catch { }
     }

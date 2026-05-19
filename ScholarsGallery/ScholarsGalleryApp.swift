@@ -16,6 +16,7 @@ struct ScholarsGalleryApp: App {
     let modelContainer: ModelContainer
 
     init() {
+        AppPerformanceTuning.configureCaches()
         do {
             modelContainer = try GalleryPersistence.makeContainer()
         } catch {
