@@ -9,7 +9,7 @@ enum GalleryImageProcessing {
         let thumbnailData: Data
     }
 
-    static func prepareAssets(
+    nonisolated static func prepareAssets(
         from sourceData: Data,
         maxUploadDimension: Int = 2048,
         thumbnailDimension: Int = 480,
@@ -33,7 +33,7 @@ enum GalleryImageProcessing {
         return PreparedAssets(uploadData: uploadData, thumbnailData: thumbnailData)
     }
 
-    private static func makeJPEGData(
+    private nonisolated static func makeJPEGData(
         from source: CGImageSource,
         maxPixelSize: Int,
         compressionQuality: Double

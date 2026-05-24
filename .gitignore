@@ -18,3 +18,7 @@ xcuserdata/
 ci_scripts/__pycache__/
 Server/Data/generated-artworks.json
 DerivedData/
+.build-server-tests/
+.build-units-run/
+Server/.build-server-tests/
+

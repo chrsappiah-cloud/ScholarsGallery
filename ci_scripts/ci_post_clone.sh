@@ -1,8 +1,15 @@
 #!/bin/zsh
 set -euo pipefail
 
+run_with_safe_bare_repo() {
+  GIT_CONFIG_COUNT=1 \
+  GIT_CONFIG_KEY_0=safe.bareRepository \
+  GIT_CONFIG_VALUE_0=all \
+  "$@"
+}
+
 echo "Resolving Swift packages..."
-xcodebuild -resolvePackageDependencies \
+run_with_safe_bare_repo xcodebuild -resolvePackageDependencies \
   -project "ScholarsGallery.xcodeproj" \
   -scheme "ScholarsGallery"
 
@@ -22,7 +29,7 @@ print('iPhone 17 Pro')
 echo "Using simulator: $SIM_NAME"
 
 echo "Running Debug build (simulator)..."
-xcodebuild build \
+run_with_safe_bare_repo xcodebuild build \
   -project "ScholarsGallery.xcodeproj" \
   -scheme "ScholarsGallery" \
   -configuration Debug \
@@ -30,7 +37,7 @@ xcodebuild build \
   -destination "platform=iOS Simulator,name=$SIM_NAME"
 
 echo "Running Release build (simulator) — catches production-only settings..."
-xcodebuild build \
+run_with_safe_bare_repo xcodebuild build \
   -project "ScholarsGallery.xcodeproj" \
   -scheme "ScholarsGallery" \
   -configuration Release \
