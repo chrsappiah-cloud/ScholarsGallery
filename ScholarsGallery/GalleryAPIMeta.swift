@@ -114,7 +114,6 @@ struct GalleryAPIMeta: Codable, Equatable, Sendable {
     let catalog: String
     let hasOpenAI: Bool
     let version: String
-    let checkoutEnabled: Bool?
     let generationEnabled: Bool?
     let announcement: String?
     let adminPanelConfigured: Bool?
@@ -124,7 +123,6 @@ struct GalleryAPIMeta: Codable, Equatable, Sendable {
     /// Operator policy gate for the Dola Smart AI Assistant.
     let dolaAssistantEnabled: Bool?
 
-    var effectiveCheckoutEnabled: Bool { checkoutEnabled ?? true }
     var effectiveGenerationEnabled: Bool { generationEnabled ?? true }
     var effectiveDolaAssistantEnabled: Bool { dolaAssistantEnabled ?? true }
     var effectiveDolaAssistantConfigured: Bool { dolaAssistantConfigured ?? false }

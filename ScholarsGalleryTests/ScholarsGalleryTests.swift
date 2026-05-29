@@ -107,7 +107,6 @@ struct ScholarsGalleryTests {
         #expect(meta.catalog == "static")
         #expect(meta.hasOpenAI == false)
         #expect(meta.version == "1")
-        #expect(meta.effectiveCheckoutEnabled)
         #expect(meta.effectiveGenerationEnabled)
     }
 
@@ -118,11 +117,9 @@ struct ScholarsGalleryTests {
             """.utf8
         )
         let meta = try JSONDecoder().decode(GalleryAPIMeta.self, from: data)
-        #expect(meta.effectiveCheckoutEnabled == true)
         #expect(meta.effectiveGenerationEnabled == true)
         #expect(meta.effectiveDolaAssistantEnabled == true)
         #expect(meta.effectiveDolaAssistantConfigured == false)
-        #expect(meta.checkoutEnabled == nil)
         #expect(meta.generationEnabled == nil)
         #expect(meta.dolaAssistantEnabled == nil)
         #expect(meta.dolaAssistantConfigured == nil)
@@ -137,7 +134,6 @@ struct ScholarsGalleryTests {
         let meta = try JSONDecoder().decode(GalleryAPIMeta.self, from: data)
         #expect(meta.effectiveDolaAssistantConfigured == true)
         #expect(meta.effectiveDolaAssistantEnabled == false)
-        #expect(meta.effectiveCheckoutEnabled == false)
         #expect(meta.effectiveGenerationEnabled == false)
         #expect(meta.hasOpenAI == true)
     }

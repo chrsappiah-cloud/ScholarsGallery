@@ -1008,7 +1008,6 @@ private struct ImmersiveArtworkDetailView: View {
     @EnvironmentObject private var collectionStore: CollectionStore
     @EnvironmentObject private var favoritesStore: FavoritesStore
     let artwork: ArtworkPackage
-    @State private var checkoutMessage = ""
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
@@ -1097,17 +1096,7 @@ private struct ImmersiveArtworkDetailView: View {
                             }
 
                             Button(String(format: String(localized: "artwork.acquireEdition"), edition.number, edition.total)) {
-                                Task {
-                                    switch await GalleryAPI.performCheckout() {
-                                    case .success(let message):
-                                        checkoutMessage = message
-                                        collectionStore.add(artworkID: artwork.id)
-                                    case .policyBlocked:
-                                        checkoutMessage = String(localized: "checkout.policyBlocked")
-                                    case .failed:
-                                        checkoutMessage = String(localized: "checkout.currentlyUnavailable")
-                                    }
-                                }
+                                collectionStore.add(artworkID: artwork.id)
                             }
                             .buttonStyle(GalleryProminentButtonStyle())
 
@@ -1135,12 +1124,6 @@ private struct ImmersiveArtworkDetailView: View {
                                         .padding(.vertical, 12)
                                         .glassCard(cornerRadius: 12)
                                 }
-                            }
-
-                            if !checkoutMessage.isEmpty {
-                                Text(checkoutMessage)
-                                    .font(.caption)
-                                    .foregroundStyle(GalleryTheme.textTertiary)
                             }
                         }
                         .padding(16)
@@ -1565,7 +1548,6 @@ private struct ArtworkDetailView: View {
     @EnvironmentObject private var collectionStore: CollectionStore
     @EnvironmentObject private var favoritesStore: FavoritesStore
     let artwork: ArtworkPackage
-    @State private var checkoutMessage = ""
 
     var body: some View {
         ScrollView {
@@ -1592,17 +1574,7 @@ private struct ArtworkDetailView: View {
 
                 if let edition = artwork.edition {
                     Button(String(format: String(localized: "artwork.acquireEdition"), edition.number, edition.total)) {
-                        Task {
-                            switch await GalleryAPI.performCheckout() {
-                            case .success(let message):
-                                checkoutMessage = message
-                                collectionStore.add(artworkID: artwork.id)
-                            case .policyBlocked:
-                                checkoutMessage = String(localized: "checkout.policyBlocked")
-                            case .failed:
-                                checkoutMessage = String(localized: "checkout.currentlyUnavailable")
-                            }
-                        }
+                        collectionStore.add(artworkID: artwork.id)
                     }
                     .buttonStyle(GalleryProminentButtonStyle())
 
@@ -1610,10 +1582,6 @@ private struct ArtworkDetailView: View {
                         favoritesStore.toggle(artworkID: artwork.id)
                     }
                     .buttonStyle(.bordered)
-
-                    if !checkoutMessage.isEmpty {
-                        Text(checkoutMessage).font(.footnote).foregroundStyle(.secondary)
-                    }
                 }
             }
             .padding()
@@ -2110,12 +2078,6 @@ private struct CollectionRecordDetailView: View {
     }
 }
 
-private enum GalleryCheckoutResult: Equatable {
-    case success(message: String)
-    case policyBlocked
-    case failed
-}
-
 private enum GalleryAPI {
     private static let baseURL = GalleryAPIConfiguration.baseURL
     private static let cache = GalleryCache()
@@ -2195,25 +2157,6 @@ private enum GalleryAPI {
         let exhibitions = try await fetchExhibitions()
         guard let first = exhibitions.first else { return [] }
         return try await fetchArtworks(exhibitionSlug: first.slug)
-    }
-
-    static func performCheckout() async -> GalleryCheckoutResult {
-        guard let id = UUID(uuidString: "00000000-0000-0000-0000-000000000001") else { return .failed }
-        var request = URLRequest(url: baseURL.appendingPathComponent("api/checkout/\(id.uuidString)"))
-        request.httpMethod = "POST"
-        do {
-            let (data, response) = try await session.data(for: request)
-            guard let http = response as? HTTPURLResponse else { return .failed }
-            if http.statusCode == 403 {
-                return .policyBlocked
-            }
-            guard (200...299).contains(http.statusCode) else { return .failed }
-            let payload = try JSONDecoder().decode(CheckoutResponse.self, from: data)
-            let message = String(format: String(localized: "checkout.urlReady"), payload.checkoutURL)
-            return .success(message: message)
-        } catch {
-            return .failed
-        }
     }
 
     static func generateArtwork(prompt: String, artistID: UUID) async throws -> GeneratedArtwork {
@@ -2410,10 +2353,6 @@ private struct ScholarlyEssaySummary: Codable, Hashable, Identifiable {
     let id: String
     let title: String
     let author: String
-}
-
-private struct CheckoutResponse: Codable, Hashable {
-    let checkoutURL: String
 }
 
 private struct GenerateArtworkRequest: Codable {
