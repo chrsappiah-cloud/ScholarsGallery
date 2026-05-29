@@ -99,9 +99,9 @@ rm -rf "$DERIVED_DATA_PATH"
 
 UI_TEST_CLASSES=(
   "ScholarsGalleryUITests/ScholarsGalleryUITests"
-  "ScholarsGalleryUITests/SubscriptionPanelUITests"
   "ScholarsGalleryUITests/AdminAccessGrantsUITests"
   "ScholarsGalleryUITests/StudyCoachUITests"
+  "ScholarsGalleryUITests/EndToEndWorkflowUITests"
 )
 
 for CLASS in "${UI_TEST_CLASSES[@]}"; do

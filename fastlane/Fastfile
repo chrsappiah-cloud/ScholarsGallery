@@ -1,0 +1,40 @@
+default_platform(:ios)
+
+platform :ios do
+  desc "Take screenshots for App Store (iPhone + iPad)"
+  lane :screenshots do
+    capture_screenshots(
+      scheme: "ScholarsGallery",
+      output_directory: "./distribution_screenshots",
+      concurrent_workers: 1,
+      stop_after_first_error: false
+    )
+  end
+
+  desc "Build and run all tests"
+  lane :run_all_tests do
+    run_tests(
+      scheme: "ScholarsGallery",
+      devices: ["iPhone 17 Pro Max"],
+      derived_data_path: "./.build-test",
+      build_for_testing: true,
+      test_without_building: false
+    )
+  end
+
+  desc "Build for distribution (App Store)"
+  lane :build_for_distribution do
+    build_app(
+      scheme: "ScholarsGallery",
+      export_method: "app-store",
+      derived_data_path: "./.build-dist"
+    )
+  end
+
+  desc "Full release prep: test → screenshots → build"
+  lane :prepare_release do
+    run_all_tests
+    screenshots
+    build_for_distribution
+  end
+end

@@ -37,7 +37,11 @@ enum CatalogLoader: Sendable {
         case .static:
             return StaticCatalog.exhibitions(publicBaseURL: publicBaseURL)
         case .supabase(let projectURL, let key):
-            return try await Self.supabaseExhibitions(projectURL: projectURL, serviceRoleKey: key, publicBaseURL: publicBaseURL)
+            do {
+                return try await Self.supabaseExhibitions(projectURL: projectURL, serviceRoleKey: key, publicBaseURL: publicBaseURL)
+            } catch {
+                return StaticCatalog.exhibitions(publicBaseURL: publicBaseURL)
+            }
         }
     }
 
@@ -46,7 +50,11 @@ enum CatalogLoader: Sendable {
         case .static:
             return try StaticCatalog.manifest(slug: slug)
         case .supabase(let projectURL, let key):
-            return try await Self.supabaseManifest(slug: slug, projectURL: projectURL, serviceRoleKey: key)
+            do {
+                return try await Self.supabaseManifest(slug: slug, projectURL: projectURL, serviceRoleKey: key)
+            } catch {
+                return try StaticCatalog.manifest(slug: slug)
+            }
         }
     }
 
@@ -55,7 +63,11 @@ enum CatalogLoader: Sendable {
         case .static:
             return StaticCatalog.essaySummaries()
         case .supabase(let projectURL, let key):
-            return try await Self.supabaseEssaySummaries(projectURL: projectURL, serviceRoleKey: key)
+            do {
+                return try await Self.supabaseEssaySummaries(projectURL: projectURL, serviceRoleKey: key)
+            } catch {
+                return StaticCatalog.essaySummaries()
+            }
         }
     }
 
@@ -64,7 +76,11 @@ enum CatalogLoader: Sendable {
         case .static:
             return try StaticCatalog.essay(id: id)
         case .supabase(let projectURL, let key):
-            return try await Self.supabaseEssay(id: id, projectURL: projectURL, serviceRoleKey: key)
+            do {
+                return try await Self.supabaseEssay(id: id, projectURL: projectURL, serviceRoleKey: key)
+            } catch {
+                return try StaticCatalog.essay(id: id)
+            }
         }
     }
 
@@ -73,12 +89,16 @@ enum CatalogLoader: Sendable {
         case .static:
             return try StaticCatalog.artworks(exhibitionSlug: exhibitionSlug, publicBaseURL: publicBaseURL)
         case .supabase(let projectURL, let key):
-            return try await Self.supabaseArtworks(
-                exhibitionSlug: exhibitionSlug,
-                projectURL: projectURL,
-                serviceRoleKey: key,
-                publicBaseURL: publicBaseURL
-            )
+            do {
+                return try await Self.supabaseArtworks(
+                    exhibitionSlug: exhibitionSlug,
+                    projectURL: projectURL,
+                    serviceRoleKey: key,
+                    publicBaseURL: publicBaseURL
+                )
+            } catch {
+                return try StaticCatalog.artworks(exhibitionSlug: exhibitionSlug, publicBaseURL: publicBaseURL)
+            }
         }
     }
 

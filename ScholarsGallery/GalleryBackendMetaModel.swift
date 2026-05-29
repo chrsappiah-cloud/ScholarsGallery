@@ -6,22 +6,10 @@ import SwiftUI
 final class GalleryBackendMetaModel: ObservableObject {
     @Published private(set) var meta: GalleryAPIMeta?
     @Published private(set) var lastRefreshFailed = false
-    @Published private(set) var hasStudioAccess = false
     @Published private(set) var connectionSummary: String?
 
     private static let cache = AppJSONCache()
     private static let cacheKey = "cache.apiMeta"
-
-    private var paymentCancellable: AnyCancellable?
-
-    init() {
-        paymentCancellable = StoreKitPaymentService.shared.$purchasedProductIDs
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] ids in
-                self?.hasStudioAccess = ids.contains(StoreKitPaymentService.ProductID.studioMonthly.rawValue)
-                    || ids.contains(StoreKitPaymentService.ProductID.studioYearly.rawValue)
-            }
-    }
 
     func refresh() async {
         do {
@@ -56,7 +44,7 @@ final class GalleryBackendMetaModel: ObservableObject {
         }
     }
 
-    private static func makeConnectionSummary(meta: GalleryAPIMeta?, lastRefreshFailed: Bool) -> String? {
+    static func makeConnectionSummary(meta: GalleryAPIMeta?, lastRefreshFailed: Bool) -> String? {
         let host = GalleryAPIConfiguration.hostDisplayName
 
         if lastRefreshFailed {

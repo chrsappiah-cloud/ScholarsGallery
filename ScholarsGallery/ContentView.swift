@@ -6,7 +6,6 @@ import PhotosUI
 import GalleryCore
 import GalleryUI
 import GalleryApp
-import StoreKit
 
 // MARK: - App Entry
 
@@ -325,13 +324,21 @@ private struct ImmersiveHomeView: View {
                 .padding(.bottom, 100)
             }
             .background(GalleryAppBackground().ignoresSafeArea())
+            .refreshable {
+                await loadContent()
+            }
             .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $showAdministratorPanel) {
                 AdministratorControlPanelView()
                     .environmentObject(galleryBackendMeta)
             }
-            .task { await vm.load() }
+            .task { await loadContent() }
         }
+    }
+
+    private func loadContent() async {
+        await vm.load()
+        await galleryBackendMeta.refresh()
     }
 
     // Sticky cinematic header
@@ -500,6 +507,15 @@ private struct ImmersiveHomeView: View {
                 .font(.caption)
                 .foregroundStyle(GalleryTheme.textTertiary)
                 .multilineTextAlignment(.center)
+            Button {
+                Task { await loadContent() }
+            } label: {
+                Label(String(localized: "home.retry"), systemImage: "arrow.clockwise")
+                    .frame(maxWidth: 200)
+            }
+            .buttonStyle(GalleryProminentButtonStyle())
+            .padding(.top, 8)
+            .accessibilityIdentifier("home.retryButton")
         }
         .frame(maxWidth: .infinity, minHeight: 300)
         .padding(40)
@@ -1610,8 +1626,6 @@ private struct ArtworkDetailView: View {
 @MainActor
 private struct ScholarshipHomeView: View {
     @StateObject private var vm = ScholarshipViewModel()
-    @ObservedObject private var paymentService = StoreKitPaymentService.shared
-    @AppStorage("gallery.admin_granted_access") private var adminGrantedAccess = false
     @State private var selectedSection: ScholarshipSection = {
         switch ProcessInfo.processInfo.environment["UITEST_SCHOLARSHIP_SECTION"] {
         case "essays": return .essays
@@ -1621,17 +1635,11 @@ private struct ScholarshipHomeView: View {
             return .coach
         }
     }()
-    @State private var showSubscriptionPanel = false
 
     private enum ScholarshipSection: String, CaseIterable {
         case artworks = "AI Descriptions"
         case essays = "Essays"
         case coach = "Study Coach"
-    }
-
-    private var hasCoachAccess: Bool {
-        paymentService.hasMonitorAccess || adminGrantedAccess
-            || ProcessInfo.processInfo.environment["MOCK_MONITOR_ACCESS"] == "1"
     }
 
     var body: some View {
@@ -1655,28 +1663,13 @@ private struct ScholarshipHomeView: View {
                     case .essays:
                         essayListContent
                     case .coach:
-                        if hasCoachAccess {
-                            OnDeviceScholarStudyCoachView()
-                        } else {
-                            CoachSubscriptionPaywallView(showPanel: $showSubscriptionPanel)
-                        }
+                        OnDeviceScholarStudyCoachView()
                     }
                 }
             }
             .background(GalleryAppBackground().ignoresSafeArea())
             .navigationTitle(String(localized: "scholarship.navTitle"))
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        showSubscriptionPanel = true
-                    } label: {
-                        Image(systemName: hasCoachAccess ? "checkmark.seal.fill" : "person.crop.circle.badge.plus")
-                            .symbolRenderingMode(.hierarchical)
-                            .foregroundStyle(hasCoachAccess ? GalleryTheme.accent : GalleryTheme.textSecondary)
-                    }
-                    .accessibilityLabel(hasCoachAccess ? "Subscription active" : "View subscription plans")
-                    .accessibilityIdentifier("subscriptionPanel.toolbarButton")
-                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         Task { await vm.load() }
@@ -1686,25 +1679,10 @@ private struct ScholarshipHomeView: View {
                     .accessibilityIdentifier("scholarship.refreshButton")
                 }
             }
-            .sheet(isPresented: $showSubscriptionPanel) {
-                UserSubscriptionPanelView()
-            }
             .task {
                 await vm.load()
-                await refreshAdminGrantStatus()
             }
         }
-    }
-
-    private func refreshAdminGrantStatus() async {
-        guard let deviceID = UIDevice.current.identifierForVendor?.uuidString else { return }
-        var request = URLRequest(url: GalleryAPIConfiguration.baseURL.appendingPathComponent("api/access/check"))
-        request.addValue(deviceID, forHTTPHeaderField: "X-Device-ID")
-        guard let (data, response) = try? await AppHTTPSession.shared.data(for: request),
-              let http = response as? HTTPURLResponse, http.statusCode == 200,
-              let payload = try? JSONDecoder().decode(AccessCheckResponse.self, from: data)
-        else { return }
-        adminGrantedAccess = payload.granted
     }
 
     @ViewBuilder
@@ -1830,74 +1808,6 @@ private struct ScholarshipDetailView: View {
             isLoading = false
         }
     }
-}
-
-// MARK: - Coach Paywall
-
-private struct CoachSubscriptionPaywallView: View {
-    @Binding var showPanel: Bool
-
-    var body: some View {
-        VStack(spacing: 24) {
-            Spacer()
-            Image(systemName: "stethoscope.circle.fill")
-                .font(.system(size: 64))
-                .symbolRenderingMode(.hierarchical)
-                .foregroundStyle(GalleryTheme.accent)
-                .accessibilityIdentifier("paywall.lockIcon")
-
-            VStack(spacing: 8) {
-                Text("Aged Care Monitor")
-                    .font(.title2.weight(.bold))
-                    .foregroundStyle(GalleryTheme.textPrimary)
-                    .accessibilityIdentifier("paywall.title")
-                Text("Access trauma-aware communication training, dignity-first dementia support, co-design frameworks, and AI-powered flashcards and lesson plans.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 8)
-            }
-
-            VStack(spacing: 10) {
-                HStack(spacing: 8) {
-                    Image(systemName: "checkmark.circle.fill").foregroundStyle(GalleryTheme.accent)
-                    Text("On-device AI flashcard generation")
-                }
-                HStack(spacing: 8) {
-                    Image(systemName: "checkmark.circle.fill").foregroundStyle(GalleryTheme.accent)
-                    Text("Lesson plan streaming for workshops")
-                }
-                HStack(spacing: 8) {
-                    Image(systemName: "checkmark.circle.fill").foregroundStyle(GalleryTheme.accent)
-                    Text("Curated equity-focused resource catalog")
-                }
-            }
-            .font(.footnote)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 24)
-
-            Button {
-                showPanel = true
-            } label: {
-                Label("View Plans", systemImage: "sparkles")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(GalleryProminentButtonStyle())
-            .padding(.horizontal, 24)
-            .accessibilityIdentifier("paywall.viewPlansButton")
-
-            Spacer()
-        }
-        .padding()
-        .background(GalleryAppBackground().ignoresSafeArea())
-    }
-}
-
-// MARK: - Access check response (decoded from /api/access/check)
-
-private struct AccessCheckResponse: Decodable {
-    var granted: Bool
-    var expiresAt: Date?
 }
 
 // MARK: - Collector Library
@@ -2556,19 +2466,8 @@ private struct ArtworkPackage: Identifiable, Codable, Hashable {
 @MainActor
 private struct GenerationStudioView: View {
     @EnvironmentObject private var galleryBackendMeta: GalleryBackendMetaModel
-    @ObservedObject private var paymentService = StoreKitPaymentService.shared
     @StateObject private var vm = GenerationStudioViewModel()
     @State private var showDolaSheet = false
-    @State private var showPaywall = false
-
-    private var isPaywallEnforced: Bool {
-        if ProcessInfo.processInfo.environment["MOCK_STUDIO_ACCESS"] == "1"
-            || GenerationStudioViewModel.isUITestGenerateMode {
-            return false
-        }
-        let checkoutEnabled = galleryBackendMeta.meta?.effectiveCheckoutEnabled ?? true
-        return checkoutEnabled && !paymentService.hasStudioAccess
-    }
 
     var body: some View {
         NavigationStack {
@@ -2599,10 +2498,6 @@ private struct GenerationStudioView: View {
                             .padding(12)
                     }
 
-                    if isPaywallEnforced {
-                        StudioPaywallBanner(showPaywall: $showPaywall)
-                    }
-
                     TextEditor(text: $vm.prompt)
                         .accessibilityIdentifier("studio.promptEditor")
                         .frame(minHeight: 150)
@@ -2628,11 +2523,7 @@ private struct GenerationStudioView: View {
                     }
 
                     Button {
-                        if isPaywallEnforced {
-                            showPaywall = true
-                        } else {
-                            Task { await vm.generate() }
-                        }
+                        Task { await vm.generate() }
                     } label: {
                         if vm.isGenerating {
                             ProgressView()
@@ -2640,8 +2531,8 @@ private struct GenerationStudioView: View {
                                 .frame(maxWidth: .infinity)
                         } else {
                             Label(
-                                isPaywallEnforced ? "Subscribe to Generate" : String(localized: "studio.generateArtwork"),
-                                systemImage: isPaywallEnforced ? "lock.fill" : "wand.and.stars"
+                                String(localized: "studio.generateArtwork"),
+                                systemImage: "wand.and.stars"
                             )
                                 .labelStyle(.titleAndIcon)
                                 .frame(maxWidth: .infinity)
@@ -2748,9 +2639,6 @@ private struct GenerationStudioView: View {
                 }
                 .environmentObject(galleryBackendMeta)
             }
-            .sheet(isPresented: $showPaywall) {
-                StudioPaywallSheet()
-            }
             .task {
                 await vm.loadRecent()
             }
@@ -2758,135 +2646,6 @@ private struct GenerationStudioView: View {
     }
 }
 
-private struct StudioPaywallBanner: View {
-    @Binding var showPaywall: Bool
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "crown.fill")
-                .font(.title2)
-                .foregroundStyle(.yellow)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Studio Pro Required")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.primary)
-                Text("Subscribe to unlock unlimited AI art generation")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            Button("Unlock") { showPaywall = true }
-                .buttonStyle(.borderedProminent)
-                .tint(GalleryTheme.accent)
-                .controlSize(.small)
-        }
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(GalleryTheme.card)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(Color.yellow.opacity(0.3), lineWidth: 1)
-                )
-        )
-    }
-}
-
-private struct StudioPaywallSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @ObservedObject private var paymentService = StoreKitPaymentService.shared
-    @State private var isPurchasing = false
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 24) {
-                    Image(systemName: "sparkles.rectangle.stack.fill")
-                        .font(.system(size: 60))
-                        .foregroundStyle(GalleryTheme.accent)
-                        .padding(.top, 30)
-
-                    Text("Studio Pro")
-                        .font(.largeTitle.bold())
-
-                    Text("Unlock unlimited AI art generation, Dola assistant, and exclusive features.")
-                        .font(.body)
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal)
-
-                    VStack(spacing: 12) {
-                        ForEach(paymentService.products, id: \.id) { product in
-                            Button {
-                                Task {
-                                    isPurchasing = true
-                                    let success = await paymentService.purchase(product)
-                                    isPurchasing = false
-                                    if success { dismiss() }
-                                }
-                            } label: {
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(product.displayName)
-                                            .font(.headline)
-                                        Text(product.description)
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    Spacer()
-                                    Text(product.displayPrice)
-                                        .font(.headline)
-                                        .foregroundStyle(GalleryTheme.accent)
-                                }
-                                .padding(16)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                        .fill(GalleryTheme.card)
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                                .stroke(GalleryTheme.accent.opacity(0.3), lineWidth: 1)
-                                        )
-                                )
-                            }
-                            .buttonStyle(.plain)
-                            .disabled(isPurchasing)
-                        }
-                    }
-                    .padding(.horizontal)
-
-                    if paymentService.products.isEmpty && !paymentService.isLoading {
-                        Text("Products unavailable. Generation access is free while store is being configured.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding()
-                    }
-
-                    if let error = paymentService.purchaseError {
-                        Text(error)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                    }
-
-                    Button("Restore Purchases") {
-                        Task { await paymentService.restorePurchases() }
-                    }
-                    .font(.footnote)
-
-                    Spacer()
-                }
-            }
-            .background(GalleryAppBackground().ignoresSafeArea())
-            .navigationTitle("Subscribe")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
-                }
-            }
-        }
-    }
-}
 @MainActor
 private final class GenerationStudioViewModel: ObservableObject {
     @Published var prompt: String = {

@@ -1,0 +1,21 @@
+scheme("ScholarsGallery")
+
+devices([
+  "iPhone 17 Pro Max"
+])
+
+languages([
+  "en-US"
+])
+
+output_directory("./distribution_screenshots")
+
+clear_previous_screenshots(true)
+
+override_status_bar(true)
+
+status_bar_network("wifi")
+
+status_bar_time("9:41")
+
+status_bar_battery_level(100)

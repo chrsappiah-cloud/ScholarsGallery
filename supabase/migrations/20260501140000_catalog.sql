@@ -14,7 +14,7 @@ create table if not exists public.essays (
     title text not null,
     author text not null,
     markdown_body text not null,
-    references jsonb not null default '[]'::jsonb
+    "references" jsonb not null default '[]'::jsonb
 );
 
 create table if not exists public.exhibition_artworks (
@@ -75,7 +75,7 @@ values (
 )
 on conflict (slug) do nothing;
 
-insert into public.essays (id, title, author, markdown_body, references)
+insert into public.essays (id, title, author, markdown_body, "references")
 values
     (
         'essay-001',

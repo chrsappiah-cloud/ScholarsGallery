@@ -391,29 +391,6 @@ struct ScholarsGalleryTests {
     }
 }
 
-// MARK: - Monitor Access Product IDs
-
-@Suite("Monitor Access Product IDs")
-struct MonitorAccessProductIDTests {
-    @Test func monitorMonthlyRawValue() {
-        #expect(StoreKitPaymentService.ProductID.monitorMonthly.rawValue == "gallery.monitor.monthly")
-    }
-
-    @Test func monitorYearlyRawValue() {
-        #expect(StoreKitPaymentService.ProductID.monitorYearly.rawValue == "gallery.monitor.yearly")
-    }
-
-    @Test func studioMonthlyRawValue() {
-        #expect(StoreKitPaymentService.ProductID.studioMonthly.rawValue == "gallery.studio.monthly")
-    }
-
-    @Test func allCasesContainsMonitorProducts() {
-        let ids = StoreKitPaymentService.ProductID.allCases.map(\.rawValue)
-        #expect(ids.contains("gallery.monitor.monthly"))
-        #expect(ids.contains("gallery.monitor.yearly"))
-    }
-}
-
 // MARK: - AccessCheckResponse Decoding
 
 private struct AccessCheckResponseTest: Decodable {
